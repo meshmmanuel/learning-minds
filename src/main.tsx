@@ -15,6 +15,9 @@ import './index.css';
 import App from './App.tsx';
 import { AppProvider } from './context/AppContext';
 import ReloadPrompt from './components/ReloadPrompt';
+import { initInstallPromptCapture } from './pwa/installPrompt';
+
+initInstallPromptCapture();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

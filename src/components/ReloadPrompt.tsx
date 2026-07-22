@@ -1,28 +1,15 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import {
+  canPromptInstall,
+  isAppInstalled,
+  isIosDevice,
+  promptInstall,
+  subscribeInstallAvailability,
+} from '../pwa/installPrompt';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly
 const DISMISS_KEY = 'kids-app-v2-install-dismissed';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
-
-function isIos(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function isStandalone(): boolean {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    // iOS Safari
-    ('standalone' in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone))
-  );
-}
 
 const bannerStyle: CSSProperties = {
   position: 'fixed',
@@ -66,7 +53,6 @@ export default function ReloadPrompt() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    // Offline caching still runs — we just don't show a toast for it.
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
       setInterval(() => {
@@ -75,58 +61,36 @@ export default function ReloadPrompt() {
     },
   });
 
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [canInstall, setCanInstall] = useState(canPromptInstall);
   const [showIosHint, setShowIosHint] = useState(false);
   const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
-    if (isStandalone()) return;
+    return subscribeInstallAvailability(() => setCanInstall(canPromptInstall()));
+  }, []);
 
+  useEffect(() => {
+    if (isAppInstalled()) return;
     const dismissed = localStorage.getItem(DISMISS_KEY) === '1';
-
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as BeforeInstallPromptEvent);
-    };
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-
-    // iOS never fires beforeinstallprompt — show Share → Add to Home Screen tip once.
-    if (!dismissed && isIos()) {
+    if (!dismissed && isIosDevice()) {
       setShowIosHint(true);
     }
-
-    const onInstalled = () => {
-      setInstallEvent(null);
-      setShowIosHint(false);
-    };
-    window.addEventListener('appinstalled', onInstalled);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
   }, []);
 
   const dismissInstall = () => {
-    setInstallEvent(null);
     setShowIosHint(false);
     localStorage.setItem(DISMISS_KEY, '1');
   };
 
   const handleInstall = async () => {
-    if (!installEvent) return;
     setInstalling(true);
     try {
-      await installEvent.prompt();
-      await installEvent.userChoice;
-      setInstallEvent(null);
+      await promptInstall();
     } finally {
       setInstalling(false);
     }
   };
 
-  // Prefer update over install when both could show.
   if (needRefresh) {
     return (
       <div role="alert" style={bannerStyle}>
@@ -145,7 +109,8 @@ export default function ReloadPrompt() {
     );
   }
 
-  if (installEvent) {
+  // Banner only when not dismissed — Settings always has Install.
+  if (canInstall && localStorage.getItem(DISMISS_KEY) !== '1') {
     return (
       <div role="alert" style={bannerStyle}>
         <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35 }}>

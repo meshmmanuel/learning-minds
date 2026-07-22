@@ -1,8 +1,16 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects } from '../data/subjects';
 import type { ThemeName } from '../types';
+import {
+  canPromptInstall,
+  isAppInstalled,
+  isIosDevice,
+  promptInstall,
+  subscribeInstallAvailability,
+} from '../pwa/installPrompt';
 
 const THEME_ORDER: ThemeName[] = ['calm', 'playful', 'adventure'];
 
@@ -13,6 +21,34 @@ export default function ParentDashboard() {
 
   const kid = kids.find((k) => k.id === activeKidId);
   const kidProgress = activeKidId ? progress[activeKidId] ?? {} : {};
+
+  const [installed, setInstalled] = useState(isAppInstalled);
+  const [canInstall, setCanInstall] = useState(canPromptInstall);
+  const [installing, setInstalling] = useState(false);
+  const [showIosSteps, setShowIosSteps] = useState(false);
+
+  useEffect(() => {
+    return subscribeInstallAvailability(() => {
+      setInstalled(isAppInstalled());
+      setCanInstall(canPromptInstall());
+    });
+  }, []);
+
+  const handleInstall = async () => {
+    if (isIosDevice()) {
+      setShowIosSteps(true);
+      return;
+    }
+    if (!canInstall) return;
+    setInstalling(true);
+    try {
+      await promptInstall();
+      setInstalled(isAppInstalled());
+      setCanInstall(canPromptInstall());
+    } finally {
+      setInstalling(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: '#F7F5F0', display: 'flex', justifyContent: 'center', padding: '24px 16px' }}>
@@ -116,6 +152,74 @@ export default function ParentDashboard() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: '1px solid #E5E1D6' }}>
+          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>Install app</div>
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: '14px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            {installed ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <i className="fa-solid fa-circle-check" style={{ color: '#3DDC97' }} />
+                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
+                  Installed — works offline from your home screen.
+                </span>
+              </div>
+            ) : (
+              <>
+                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
+                  Add Explorer Kids to your device for offline play.
+                </span>
+                {showIosSteps || (isIosDevice() && !canInstall) ? (
+                  <div
+                    style={{
+                      fontFamily: "'Nunito', sans-serif",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: '#8F887A',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Tap <i className="fa-solid fa-arrow-up-from-bracket" aria-hidden /> Share in Safari, then choose{' '}
+                    <strong style={{ color: '#5B4A1E' }}>Add to Home Screen</strong>.
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void handleInstall()}
+                  disabled={installing || (!canInstall && !isIosDevice())}
+                  className="tile"
+                  style={{
+                    alignSelf: 'flex-start',
+                    padding: '10px 16px',
+                    borderRadius: 999,
+                    background: canInstall || isIosDevice() ? '#FF6F61' : '#D8D3C4',
+                    color: '#fff',
+                    fontFamily: "'Nunito', sans-serif",
+                    fontWeight: 800,
+                    fontSize: 14,
+                    opacity: installing ? 0.7 : 1,
+                  }}
+                >
+                  <i className="fa-solid fa-download" style={{ marginRight: 8 }} />
+                  {installing ? 'Installing…' : isIosDevice() ? 'How to install' : canInstall ? 'Install' : 'Install unavailable'}
+                </button>
+                {!canInstall && !isIosDevice() && !installed ? (
+                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 12, color: '#8F887A' }}>
+                    Open this site in Chrome or Edge on a phone/desktop to install. Or use the browser’s Install / Add to Home Screen menu.
+                  </span>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
 
