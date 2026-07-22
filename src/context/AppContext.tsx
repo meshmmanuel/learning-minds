@@ -3,10 +3,6 @@ import type { DailyRecord, Kid, KidSettings, ThemeName, TopicSessionRecord } fro
 import { todayStr } from '../utils/date';
 import { computeStars } from '../utils/rewards';
 
-interface Progress {
-  [kidId: string]: { [subjectId: string]: number };
-}
-
 const DEFAULT_SETTINGS: KidSettings = {
   questionsPerTopic: 10,
   difficulty: 'normal',
@@ -23,7 +19,6 @@ interface PersistedState {
   activeKidId: string | null;
   theme: ThemeName;
   gateEnabled: boolean;
-  progress: Progress;
   kidSettings: Record<string, KidSettings>;
   dailyRecords: Record<string, DailyRecord>;
   lastPlayDate: Record<string, string>;
@@ -39,7 +34,6 @@ interface AppState extends PersistedState {
   setActiveKid: (id: string) => void;
   setTheme: (t: ThemeName) => void;
   setGateEnabled: (v: boolean) => void;
-  bumpProgress: (subjectId: string, amount?: number) => void;
   getKidSettings: (kidId: string) => KidSettings;
   updateKidSettings: (kidId: string, partial: Partial<KidSettings>) => void;
   getTodayRecord: (kidId: string) => DailyRecord;
@@ -73,7 +67,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeKidId, setActiveKidId] = useState<string | null>(initial.activeKidId ?? null);
   const [theme, setThemeState] = useState<ThemeName>(initial.theme ?? 'playful');
   const [gateEnabled, setGateEnabledState] = useState<boolean>(initial.gateEnabled ?? true);
-  const [progress, setProgress] = useState<Progress>(initial.progress ?? {});
   const [kidSettings, setKidSettings] = useState<Record<string, KidSettings>>(initial.kidSettings ?? {});
   const [dailyRecords, setDailyRecords] = useState<Record<string, DailyRecord>>(initial.dailyRecords ?? {});
   const [lastPlayDate, setLastPlayDate] = useState<Record<string, string>>(initial.lastPlayDate ?? {});
@@ -84,13 +77,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeKidId,
       theme,
       gateEnabled,
-      progress,
       kidSettings,
       dailyRecords,
       lastPlayDate,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-  }, [kids, activeKidId, theme, gateEnabled, progress, kidSettings, dailyRecords, lastPlayDate]);
+  }, [kids, activeKidId, theme, gateEnabled, kidSettings, dailyRecords, lastPlayDate]);
 
   const addKid: AppState['addKid'] = (kid) => {
     const newKid: Kid = { ...kid, id: crypto.randomUUID() };
@@ -103,16 +95,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setActiveKid = (id: string) => setActiveKidId(id);
   const setTheme = (t: ThemeName) => setThemeState(t);
   const setGateEnabled = (v: boolean) => setGateEnabledState(v);
-
-  const bumpProgress: AppState['bumpProgress'] = (subjectId, amount = 12) => {
-    if (!activeKidId) return;
-    setProgress((prev) => {
-      const kidProgress = prev[activeKidId] ?? {};
-      const current = kidProgress[subjectId] ?? 0;
-      const next = Math.min(100, current + amount);
-      return { ...prev, [activeKidId]: { ...kidProgress, [subjectId]: next } };
-    });
-  };
 
   const getKidSettings: AppState['getKidSettings'] = (kidId) => kidSettings[kidId] ?? DEFAULT_SETTINGS;
 
@@ -236,7 +218,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activeKidId,
         theme,
         gateEnabled,
-        progress,
         kidSettings,
         dailyRecords,
         lastPlayDate,
@@ -244,7 +225,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveKid,
         setTheme,
         setGateEnabled,
-        bumpProgress,
         getKidSettings,
         updateKidSettings,
         getTodayRecord,

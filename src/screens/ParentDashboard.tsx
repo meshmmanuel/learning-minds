@@ -5,6 +5,7 @@ import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
 import type { Difficulty, QuestionsPerTopic, ThemeName } from '../types';
 import { daysSince } from '../utils/date';
+import { subjectTodayPercent } from '../utils/progress';
 import {
   canPromptInstall,
   isAppInstalled,
@@ -28,7 +29,6 @@ export default function ParentDashboard() {
     setTheme,
     kids,
     activeKidId,
-    progress,
     gateEnabled,
     setGateEnabled,
     getKidSettings,
@@ -42,7 +42,6 @@ export default function ParentDashboard() {
   const navigate = useNavigate();
 
   const kid = kids.find((k) => k.id === activeKidId);
-  const kidProgress = activeKidId ? progress[activeKidId] ?? {} : {};
   const settings = kid ? getKidSettings(kid.id) : null;
   const todayRecord = kid ? getTodayRecord(kid.id) : null;
   const daysAway = kid ? daysSince(lastPlayDate[kid.id] ?? null) : null;
@@ -156,44 +155,46 @@ export default function ParentDashboard() {
           </div>
         </div>
 
-        <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 14, borderBottom: '1px solid #E5E1D6' }}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>
-            {kid ? `${kid.name}'s progress` : 'Progress'}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {subjects.map((s, i) => {
-              const pct = kidProgress[s.id] ?? 0;
-              const color = palette.tileColors[i % palette.tileColors.length];
-              return (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 10,
-                      background: color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <i className={s.icon} style={{ fontSize: 13, color: '#fff' }} />
+        {kid && todayRecord && (
+          <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 14, borderBottom: '1px solid #E5E1D6' }}>
+            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>
+              {kid.name}'s subjects today
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {subjects.map((s, i) => {
+                const pct = subjectTodayPercent(s.id, todayRecord);
+                const color = palette.tileColors[i % palette.tileColors.length];
+                return (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 10,
+                        background: color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <i className={s.icon} style={{ fontSize: 13, color: '#fff' }} />
+                    </div>
+                    <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#3E3B34', width: 150, flexShrink: 0 }}>
+                      {s.label}
+                    </span>
+                    <div style={{ flex: 1, height: 12, background: '#E9E5D9', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999, transition: 'width 0.4s' }} />
+                    </div>
+                    <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A', width: 36, textAlign: 'right' }}>
+                      {pct}%
+                    </span>
                   </div>
-                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#3E3B34', width: 150, flexShrink: 0 }}>
-                    {s.label}
-                  </span>
-                  <div style={{ flex: 1, height: 12, background: '#E9E5D9', borderRadius: 999, overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999, transition: 'width 0.4s' }} />
-                  </div>
-                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A', width: 36, textAlign: 'right' }}>
-                    {pct}%
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {kid && settings && todayRecord && (
           <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: '1px solid #E5E1D6' }}>

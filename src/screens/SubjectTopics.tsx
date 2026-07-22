@@ -3,10 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
+import { subjectTodayPercent } from '../utils/progress';
 
 export default function SubjectTopics() {
   const { subjectId } = useParams();
-  const { theme, progress, activeKidId } = useApp();
+  const { theme, activeKidId, getTodayRecord } = useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
 
@@ -14,7 +15,8 @@ export default function SubjectTopics() {
   const subject = subjects[subjectIndex];
   const topics = subjectId ? topicsBySubject[subjectId] ?? [] : [];
   const color = palette.tileColors[subjectIndex % palette.tileColors.length];
-  const pct = activeKidId ? progress[activeKidId]?.[subjectId ?? ''] ?? 0 : 0;
+  const todayRecord = activeKidId ? getTodayRecord(activeKidId) : null;
+  const pct = subjectId && todayRecord ? subjectTodayPercent(subjectId, todayRecord) : 0;
 
   useEffect(() => {
     if (!subject) navigate('/home', { replace: true });

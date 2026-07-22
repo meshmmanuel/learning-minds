@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
 import FloatingShapes from '../components/FloatingShapes';
+import { subjectTopicsCompletedToday } from '../utils/progress';
 
 function speak(text: string) {
   if ('speechSynthesis' in window) {
@@ -16,7 +17,7 @@ function speak(text: string) {
 }
 
 export default function HomeHub() {
-  const { theme, kids, activeKidId, gateEnabled, progress, getKidSettings, getTodayRecord } = useApp();
+  const { theme, kids, activeKidId, gateEnabled, getKidSettings, getTodayRecord } = useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
 
@@ -28,7 +29,6 @@ export default function HomeHub() {
 
   if (!kid) return null;
 
-  const kidProgress = progress[kid.id] ?? {};
   const settings = getKidSettings(kid.id);
   const todayRecord = getTodayRecord(kid.id);
 
@@ -41,7 +41,9 @@ export default function HomeHub() {
   };
 
   const handlePlay = () => {
-    const leastDone = [...subjects].sort((a, b) => (kidProgress[a.id] ?? 0) - (kidProgress[b.id] ?? 0))[0];
+    const leastDone = [...subjects].sort(
+      (a, b) => subjectTopicsCompletedToday(a.id, todayRecord) - subjectTopicsCompletedToday(b.id, todayRecord),
+    )[0];
     const firstTopic = topicsBySubject[leastDone.id]?.[0];
     if (firstTopic) navigate(`/subject/${leastDone.id}/topic/${firstTopic.id}`);
   };

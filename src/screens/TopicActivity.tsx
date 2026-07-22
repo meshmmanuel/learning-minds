@@ -23,7 +23,7 @@ type Phase = 'question' | 'feedback' | 'finished';
 
 export default function TopicActivity() {
   const { subjectId, topicId } = useParams();
-  const { theme, kids, activeKidId, getKidSettings, bumpProgress, recordTopicProgress, completeTopicSession } =
+  const { theme, kids, activeKidId, getKidSettings, recordTopicProgress, completeTopicSession } =
     useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
@@ -81,7 +81,6 @@ export default function TopicActivity() {
     setTimeout(() => {
       if (nextAnswered >= totalQuestions) {
         const result = completeTopicSession(kid.id, subject.id, topic.id, nextCorrect, totalQuestions);
-        bumpProgress(subject.id);
         fireConfetti({ big: result.goalJustReached });
         setFinishResult(result);
         setPhase('finished');
