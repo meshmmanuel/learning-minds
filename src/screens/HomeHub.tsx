@@ -16,7 +16,7 @@ function speak(text: string) {
 }
 
 export default function HomeHub() {
-  const { theme, kids, activeKidId, gateEnabled, progress } = useApp();
+  const { theme, kids, activeKidId, gateEnabled, progress, getKidSettings, getTodayRecord } = useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
 
@@ -29,6 +29,8 @@ export default function HomeHub() {
   if (!kid) return null;
 
   const kidProgress = progress[kid.id] ?? {};
+  const settings = getKidSettings(kid.id);
+  const todayRecord = getTodayRecord(kid.id);
 
   const handleLock = () => {
     if (gateEnabled) {
@@ -72,22 +74,47 @@ export default function HomeHub() {
           <i className="fa-solid fa-star" style={{ color: palette.starColor }} />
           Hey {kid.name}!
         </div>
-        <button
-          onClick={handleLock}
-          className="navBtn"
-          aria-label="Parent settings"
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <i className="fa-solid fa-lock" style={{ fontSize: 16, color: palette.headerText }} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {settings.rewardsEnabled && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'rgba(255,255,255,0.25)',
+                borderRadius: 999,
+                padding: '8px 16px',
+                animation: todayRecord.goalReached ? 'pulseSoft 1.4s ease-in-out infinite' : undefined,
+              }}
+            >
+              <i className="fa-solid fa-star" style={{ color: palette.starColor }} />
+              <span style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 15, color: palette.headerText }}>
+                {Math.min(todayRecord.starsToday, settings.dailyStarTarget)} / {settings.dailyStarTarget}
+              </span>
+              {todayRecord.goalReached && (
+                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 11, color: palette.headerText }}>
+                  Reward unlocked!
+                </span>
+              )}
+            </div>
+          )}
+          <button
+            onClick={handleLock}
+            className="navBtn"
+            aria-label="Parent settings"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <i className="fa-solid fa-lock" style={{ fontSize: 16, color: palette.headerText }} />
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 28px 16px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>

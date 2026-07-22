@@ -19,3 +19,33 @@ export interface Topic {
   label: string;
   icon: string;
 }
+
+export type Difficulty = 'easy' | 'normal' | 'hard';
+export type QuestionsPerTopic = 10 | 20 | 30;
+
+export interface KidSettings {
+  questionsPerTopic: QuestionsPerTopic;
+  difficulty: Difficulty;
+  rewardsEnabled: boolean;
+  dailyStarTarget: number;
+}
+
+export interface TopicSessionRecord {
+  subjectId: string;
+  topicId: string;
+  questionsPlanned: number;
+  answered: number;
+  correct: number;
+  completed: boolean;
+  gradePercent: number | null;
+  starsEarned: number;
+  starsAwarded: boolean;
+  completedAt: string | null;
+}
+
+export interface DailyRecord {
+  date: string;
+  topics: Record<string, TopicSessionRecord>;
+  starsToday: number;
+  goalReached: boolean;
+}
