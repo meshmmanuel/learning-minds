@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
 import { fireConfetti } from '../utils/confetti';
 import { playSound } from '../utils/sound';
+import { genMathQuestion, getNumberLineWindow, buildAnswerChoices, type MathQuestion } from '../utils/mathQuestions';
+import NumberLine from '../components/NumberLine';
 
 const PRAISE = ['Great job!', 'Awesome!', 'You did it!', 'Super work!', 'Nicely done!'];
 const TRY_AGAIN = ['Nice try!', "Let's keep going!", 'Almost!', 'Good effort!'];
@@ -40,25 +42,39 @@ export default function TopicActivity() {
 
   const settings = kid ? getKidSettings(kid.id) : null;
   const totalQuestions = settings?.questionsPerTopic ?? 10;
+  const difficulty = settings?.difficulty ?? 'normal';
+  const isNumberLineTopic = subject?.id === 'math' && (topic?.id === 'addition' || topic?.id === 'subtraction');
+  const mathType: 'add' | 'sub' = topic?.id === 'subtraction' ? 'sub' : 'add';
 
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctIndex, setCorrectIndex] = useState(() => Math.floor(Math.random() * 3));
+  const [mathQ, setMathQ] = useState<MathQuestion>(() => genMathQuestion(mathType, difficulty));
+  const [answerChoices, setAnswerChoices] = useState<number[]>(() => buildAnswerChoices(mathQ.ans));
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [phase, setPhase] = useState<Phase>('question');
-  const [lastCorrect, setLastCorrect] = useState(false);
-  const [praise, setPraise] = useState('');
   const [finishResult, setFinishResult] = useState<{ starsEarnedThisRun: number; goalJustReached: boolean } | null>(
     null,
   );
+
+  const numberLineWindow = useMemo(() => getNumberLineWindow(mathQ, difficulty), [mathQ, difficulty]);
 
   useEffect(() => {
     if (!kid || !subject || !topic) navigate('/home', { replace: true });
   }, [kid, subject, topic, navigate]);
 
+  const nextMathQuestion = () => {
+    const q = genMathQuestion(mathType, difficulty);
+    setMathQ(q);
+    setAnswerChoices(buildAnswerChoices(q.ans));
+    setSelectedAnswer(null);
+  };
+
   const resetRun = () => {
     setQuestionIndex(0);
     setCorrectIndex(Math.floor(Math.random() * 3));
+    nextMathQuestion();
     setAnsweredCount(0);
     setCorrectCount(0);
     setPhase('question');
@@ -67,14 +83,11 @@ export default function TopicActivity() {
 
   if (!kid || !subject || !topic || !settings) return null;
 
-  const handleTap = (idx: number) => {
-    if (phase !== 'question') return;
-    const isCorrect = idx === correctIndex;
+  const commitAnswer = (isCorrect: boolean) => {
     const line = isCorrect ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : TRY_AGAIN[Math.floor(Math.random() * TRY_AGAIN.length)];
-    setLastCorrect(isCorrect);
-    setPraise(line);
     setPhase('feedback');
     playSound(isCorrect ? CORRECT_SOUND : WRONG_SOUND);
+    if (isCorrect) fireConfetti();
     speak(line);
 
     const nextAnswered = answeredCount + 1;
@@ -93,9 +106,20 @@ export default function TopicActivity() {
       } else {
         setQuestionIndex((i) => i + 1);
         setCorrectIndex(Math.floor(Math.random() * 3));
+        nextMathQuestion();
         setPhase('question');
       }
     }, FEEDBACK_DELAY);
+  };
+
+  const handleTap = (idx: number) => {
+    if (phase !== 'question') return;
+    commitAnswer(idx === correctIndex);
+  };
+
+  const handleSubmitMathAnswer = () => {
+    if (phase !== 'question' || selectedAnswer === null) return;
+    commitAnswer(selectedAnswer === mathQ.ans);
   };
 
   if (phase === 'finished' && finishResult) {
@@ -245,55 +269,130 @@ export default function TopicActivity() {
         Let's practice {topic.label}!
       </div>
       <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 16, color: palette.textMuted, textAlign: 'center' }}>
-        Tap the card to answer!
+        {isNumberLineTopic ? 'Use − and + to count, then pick your answer!' : 'Tap the card to answer!'}
       </div>
 
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {[0, 1, 2].map((i) => {
-          const isHint = settings.difficulty === 'easy' && phase === 'question' && i === correctIndex;
-          return (
-            <button
-              key={i}
-              onClick={() => handleTap(i)}
-              className="tile"
-              style={{
-                width: 130,
-                height: 130,
-                borderRadius: 28,
-                background: color,
-                opacity: 1 - i * 0.12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '5px solid #fff',
-                boxShadow: isHint ? `0 0 0 6px ${palette.starColor}88, 0 10px 24px rgba(0,0,0,0.18)` : '0 10px 24px rgba(0,0,0,0.18)',
-                animation: isHint ? 'pulseSoft 1.1s ease-in-out infinite' : phase === 'feedback' ? 'popIn 0.4s ease-out' : undefined,
-              }}
-            >
-              <i className={topic.icon} style={{ fontSize: 48, color: '#fff' }} />
-            </button>
-          );
-        })}
-      </div>
+      {isNumberLineTopic ? (
+        <>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              fontFamily: "'Baloo 2', sans-serif",
+              fontWeight: 800,
+              fontSize: 'clamp(32px, 8vw, 46px)',
+              color: palette.textDark,
+            }}
+          >
+            <span>{mathQ.a}</span>
+            <span style={{ color: palette.accent }}>{mathQ.type === 'add' ? '+' : '−'}</span>
+            <span>{mathQ.b}</span>
+            <span style={{ color: palette.textMuted }}>=</span>
+            <span style={{ color: palette.textMuted }}>?</span>
+          </div>
 
-      {phase === 'feedback' && (
-        <div
-          style={{
-            fontFamily: "'Baloo 2', sans-serif",
-            fontWeight: 800,
-            fontSize: 28,
-            color: lastCorrect ? palette.accent : palette.textMuted,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            animation: 'popIn 0.3s ease-out',
-          }}
-        >
-          {lastCorrect && <i className="fa-solid fa-star" style={{ color: palette.starColor }} />}
-          {praise}
-          {lastCorrect && <i className="fa-solid fa-star" style={{ color: palette.starColor }} />}
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 480,
+              background: '#fff',
+              borderRadius: 20,
+              padding: '18px 14px',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+              display: 'flex',
+              justifyContent: 'center',
+            }}
+          >
+            <NumberLine key={`${topic.id}-${questionIndex}`} win={numberLineWindow} disabled={phase !== 'question'} />
+          </div>
+
+          <div
+            style={{
+              fontFamily: "'Nunito', sans-serif",
+              fontWeight: 800,
+              fontSize: 13,
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              color: palette.textMuted,
+            }}
+          >
+            My answer is...
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 420 }}>
+            {answerChoices.map((n) => (
+              <button
+                key={n}
+                onClick={() => phase === 'question' && setSelectedAnswer(n)}
+                disabled={phase !== 'question'}
+                className="tile"
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 16,
+                  background: selectedAnswer === n ? palette.accent : '#fff',
+                  color: selectedAnswer === n ? '#fff' : palette.textDark,
+                  fontFamily: "'Baloo 2', sans-serif",
+                  fontWeight: 800,
+                  fontSize: 20,
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleSubmitMathAnswer}
+            disabled={phase !== 'question' || selectedAnswer === null}
+            className="tile"
+            style={{
+              background: selectedAnswer === null ? '#C7BFA9' : palette.accent,
+              borderRadius: 999,
+              padding: '14px 34px',
+              fontFamily: "'Baloo 2', sans-serif",
+              fontWeight: 800,
+              fontSize: 16,
+              color: '#fff',
+              boxShadow: selectedAnswer === null ? 'none' : `0 8px 18px ${palette.accent}66`,
+              opacity: selectedAnswer === null ? 0.7 : 1,
+            }}
+          >
+            That's my answer! <i className="fa-solid fa-check" />
+          </button>
+        </>
+      ) : (
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {[0, 1, 2].map((i) => {
+            const isHint = settings.difficulty === 'easy' && phase === 'question' && i === correctIndex;
+            return (
+              <button
+                key={i}
+                onClick={() => handleTap(i)}
+                className="tile"
+                style={{
+                  width: 130,
+                  height: 130,
+                  borderRadius: 28,
+                  background: color,
+                  opacity: 1 - i * 0.12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '5px solid #fff',
+                  boxShadow: isHint ? `0 0 0 6px ${palette.starColor}88, 0 10px 24px rgba(0,0,0,0.18)` : '0 10px 24px rgba(0,0,0,0.18)',
+                  animation: isHint ? 'pulseSoft 1.1s ease-in-out infinite' : phase === 'feedback' ? 'popIn 0.4s ease-out' : undefined,
+                }}
+              >
+                <i className={topic.icon} style={{ fontSize: 48, color: '#fff' }} />
+              </button>
+            );
+          })}
         </div>
       )}
+
     </div>
   );
 }
