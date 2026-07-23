@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
 import { subjectTodayPercent } from '../utils/progress';
+import { playTap } from '../utils/sound';
 
 export default function SubjectTopics() {
   const { subjectId } = useParams();
@@ -28,7 +29,10 @@ export default function SubjectTopics() {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '22px 28px', flexWrap: 'wrap' }}>
         <button
-          onClick={() => navigate('/home')}
+          onClick={() => {
+            playTap();
+            navigate('/home');
+          }}
           className="navBtn"
           aria-label="Home"
           style={{
@@ -83,7 +87,10 @@ export default function SubjectTopics() {
         {topics.map((t) => (
           <button
             key={t.id}
-            onClick={() => navigate(`/subject/${subject.id}/topic/${t.id}`)}
+            onClick={() => {
+              playTap();
+              navigate(`/subject/${subject.id}/topic/${t.id}`);
+            }}
             className="tile"
             style={{
               background: color,

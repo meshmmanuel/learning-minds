@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { avatarOptions } from '../data/subjects';
 import FloatingShapes from '../components/FloatingShapes';
+import { playTap } from '../utils/sound';
 
 export default function CreateProfile() {
   const { theme, addKid, kids } = useApp();
@@ -18,6 +19,7 @@ export default function CreateProfile() {
 
   const handleGo = () => {
     if (!canGo) return;
+    playTap();
     addKid({
       name: name.trim(),
       avatarIcon: avatarOptions[selected].icon,
@@ -57,7 +59,10 @@ export default function CreateProfile() {
       >
         {canCancel && (
           <button
-            onClick={() => navigate('/who')}
+            onClick={() => {
+              playTap();
+              navigate('/who');
+            }}
             aria-label="Cancel"
             title="Cancel"
             style={{
@@ -107,7 +112,10 @@ export default function CreateProfile() {
           {avatarOptions.map((a, i) => (
             <button
               key={a.icon}
-              onClick={() => setSelected(i)}
+              onClick={() => {
+                playTap();
+                setSelected(i);
+              }}
               className="tile"
               style={{
                 width: 60,

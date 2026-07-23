@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import FloatingShapes from '../components/FloatingShapes';
+import { playTap } from '../utils/sound';
 
 export default function WhoIsPlaying() {
   const { theme, kids, setActiveKid } = useApp();
@@ -9,6 +10,7 @@ export default function WhoIsPlaying() {
   const navigate = useNavigate();
 
   const choose = (id: string) => {
+    playTap();
     setActiveKid(id);
     navigate('/home', { replace: true });
   };
@@ -76,7 +78,10 @@ export default function WhoIsPlaying() {
             </button>
           ))}
           <button
-            onClick={() => navigate('/gate', { state: { next: '/create-profile' } })}
+            onClick={() => {
+              playTap();
+              navigate('/gate', { state: { next: '/create-profile' } });
+            }}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
           >
             <div

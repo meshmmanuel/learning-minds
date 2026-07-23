@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
 import FloatingShapes from '../components/FloatingShapes';
+import { playTap } from '../utils/sound';
 import { subjectTopicsCompletedToday } from '../utils/progress';
 
 function speak(text: string) {
@@ -121,7 +122,10 @@ export default function HomeHub() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 28px 16px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
         <button
-          onClick={() => navigate('/who')}
+          onClick={() => {
+            playTap();
+            navigate('/who');
+          }}
           aria-label="Switch profile"
           title="Switch profile"
           className="tile"
@@ -218,7 +222,10 @@ export default function HomeHub() {
               <i className="fa-solid fa-volume-high" style={{ fontSize: 20, color: palette.accent }} />
             </button>
             <button
-              onClick={handlePlay}
+              onClick={() => {
+                playTap();
+                handlePlay();
+              }}
               className="tile"
               style={{
                 background: '#3DDC97',
@@ -258,7 +265,10 @@ export default function HomeHub() {
         {subjects.map((s, i) => (
           <button
             key={s.id}
-            onClick={() => navigate(`/subject/${s.id}`)}
+            onClick={() => {
+              playTap();
+              navigate(`/subject/${s.id}`);
+            }}
             className="tile"
             style={{
               position: 'relative',

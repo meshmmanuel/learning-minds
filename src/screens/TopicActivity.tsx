@@ -4,10 +4,14 @@ import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
 import { fireConfetti } from '../utils/confetti';
+import { playSound } from '../utils/sound';
 
 const PRAISE = ['Great job!', 'Awesome!', 'You did it!', 'Super work!', 'Nicely done!'];
 const TRY_AGAIN = ['Nice try!', "Let's keep going!", 'Almost!', 'Good effort!'];
 const FEEDBACK_DELAY = 1100;
+const CORRECT_SOUND = 'confirmation_001';
+const WRONG_SOUND = 'error_002';
+const FINISH_SOUND = 'bong_001';
 
 function speak(text: string) {
   if ('speechSynthesis' in window) {
@@ -70,6 +74,7 @@ export default function TopicActivity() {
     setLastCorrect(isCorrect);
     setPraise(line);
     setPhase('feedback');
+    playSound(isCorrect ? CORRECT_SOUND : WRONG_SOUND);
     speak(line);
 
     const nextAnswered = answeredCount + 1;
@@ -81,6 +86,7 @@ export default function TopicActivity() {
     setTimeout(() => {
       if (nextAnswered >= totalQuestions) {
         const result = completeTopicSession(kid.id, subject.id, topic.id, nextCorrect, totalQuestions);
+        playSound(FINISH_SOUND);
         fireConfetti({ big: result.goalJustReached });
         setFinishResult(result);
         setPhase('finished');
