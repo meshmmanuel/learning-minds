@@ -6,13 +6,13 @@ import drawSingImg from '../assets/illustrations/penguin-music.png';
 import type { Subject, Topic } from '../types';
 
 export const subjects: Subject[] = [
-  { id: 'letters', label: 'Letters & Phonics', icon: 'fa-solid fa-spell-check', image: lettersImg },
-  { id: 'storybooks', label: 'Storybooks', icon: 'fa-solid fa-book-open', image: storybooksImg },
+  { id: 'letters', label: 'Letters & Phonics', icon: 'fa-solid fa-spell-check', image: lettersImg, locked: true },
+  { id: 'storybooks', label: 'Storybooks', icon: 'fa-solid fa-book-open', image: storybooksImg, locked: true },
   { id: 'math', label: 'Math & Counting', icon: 'fa-solid fa-calculator', image: mathImg },
-  { id: 'shapes', label: 'Shapes & Logic', icon: 'fa-solid fa-shapes', image: shapesImg },
-  { id: 'feelings', label: 'Feelings & Friends', icon: 'fa-solid fa-face-smile' },
-  { id: 'science', label: 'Explore Science', icon: 'fa-solid fa-flask' },
-  { id: 'draw-sing', label: 'Draw & Sing', icon: 'fa-solid fa-palette', image: drawSingImg },
+  { id: 'shapes', label: 'Shapes & Logic', icon: 'fa-solid fa-shapes', image: shapesImg, locked: true },
+  { id: 'feelings', label: 'Feelings & Friends', icon: 'fa-solid fa-face-smile', locked: true },
+  { id: 'science', label: 'Explore Science', icon: 'fa-solid fa-flask', locked: true },
+  { id: 'draw-sing', label: 'Draw & Sing', icon: 'fa-solid fa-palette', image: drawSingImg, locked: true },
 ];
 
 export const topicsBySubject: Record<string, Topic[]> = {
@@ -38,13 +38,13 @@ export const topicsBySubject: Record<string, Topic[]> = {
     { id: 'chapter-books', label: 'My First Chapter Book', icon: 'fa-solid fa-book' },
   ],
   math: [
-    { id: 'counting', label: 'Counting 1-10', icon: 'fa-solid fa-hashtag' },
-    { id: 'number-recognition', label: 'Number Recognition', icon: 'fa-solid fa-1' },
-    { id: 'more-fewer', label: 'More or Fewer', icon: 'fa-solid fa-scale-balanced' },
+    { id: 'counting', label: 'Counting 1-10', icon: 'fa-solid fa-hashtag', locked: true },
+    { id: 'number-recognition', label: 'Number Recognition', icon: 'fa-solid fa-1', locked: true },
+    { id: 'more-fewer', label: 'More or Fewer', icon: 'fa-solid fa-scale-balanced', locked: true },
     { id: 'addition', label: 'Addition', icon: 'fa-solid fa-plus' },
     { id: 'subtraction', label: 'Subtraction', icon: 'fa-solid fa-minus' },
-    { id: 'patterns', label: 'Patterns', icon: 'fa-solid fa-repeat' },
-    { id: 'telling-time', label: 'Telling Time', icon: 'fa-solid fa-clock' },
+    { id: 'patterns', label: 'Patterns', icon: 'fa-solid fa-repeat', locked: true },
+    { id: 'telling-time', label: 'Telling Time', icon: 'fa-solid fa-clock', locked: true },
   ],
   shapes: [
     { id: 'shape-id', label: 'Shape ID', icon: 'fa-solid fa-shapes' },

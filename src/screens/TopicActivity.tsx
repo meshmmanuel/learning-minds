@@ -59,7 +59,7 @@ export default function TopicActivity() {
   const numberLineWindow = useMemo(() => getNumberLineWindow(mathQ, difficulty), [mathQ, difficulty]);
 
   useEffect(() => {
-    if (!kid || !subject || !topic) navigate('/home', { replace: true });
+    if (!kid || !subject || !topic || subject.locked || topic.locked) navigate('/home', { replace: true });
   }, [kid, subject, topic, navigate]);
 
   const nextMathQuestion = () => {
@@ -79,7 +79,7 @@ export default function TopicActivity() {
     setFinishResult(null);
   };
 
-  if (!kid || !subject || !topic || !settings) return null;
+  if (!kid || !subject || !topic || !settings || subject.locked || topic.locked) return null;
 
   const commitAnswer = (isCorrect: boolean) => {
     const line = isCorrect ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : TRY_AGAIN[Math.floor(Math.random() * TRY_AGAIN.length)];

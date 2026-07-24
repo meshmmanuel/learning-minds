@@ -20,10 +20,10 @@ export default function SubjectTopics() {
   const pct = subjectId && todayRecord ? subjectTodayPercent(subjectId, todayRecord) : 0;
 
   useEffect(() => {
-    if (!subject) navigate('/home', { replace: true });
+    if (!subject || subject.locked) navigate('/home', { replace: true });
   }, [subject, navigate]);
 
-  if (!subject) return null;
+  if (!subject || subject.locked) return null;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -88,11 +88,14 @@ export default function SubjectTopics() {
           <button
             key={t.id}
             onClick={() => {
+              if (t.locked) return;
               playTap();
               navigate(`/subject/${subject.id}/topic/${t.id}`);
             }}
             className="tile"
+            aria-disabled={t.locked}
             style={{
+              position: 'relative',
               background: color,
               borderRadius: 22,
               padding: 18,
@@ -103,6 +106,8 @@ export default function SubjectTopics() {
               justifyContent: 'space-between',
               border: '4px solid #fff',
               textAlign: 'left',
+              opacity: t.locked ? 0.55 : 1,
+              cursor: t.locked ? 'default' : 'pointer',
             }}
           >
             <div
@@ -119,6 +124,24 @@ export default function SubjectTopics() {
               <i className={t.icon} style={{ fontSize: 21, color: '#fff' }} />
             </div>
             <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 17, color: '#fff' }}>{t.label}</div>
+            {t.locked && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <i className="fa-solid fa-lock" style={{ fontSize: 11, color: '#fff' }} />
+              </div>
+            )}
           </button>
         ))}
       </div>

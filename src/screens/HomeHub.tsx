@@ -43,10 +43,12 @@ export default function HomeHub() {
   };
 
   const handlePlay = () => {
-    const leastDone = [...subjects].sort(
+    const playableSubjects = subjects.filter((s) => !s.locked);
+    const leastDone = [...playableSubjects].sort(
       (a, b) => subjectTopicsCompletedToday(a.id, todayRecord) - subjectTopicsCompletedToday(b.id, todayRecord),
     )[0];
-    const firstTopic = topicsBySubject[leastDone.id]?.[0];
+    if (!leastDone) return;
+    const firstTopic = topicsBySubject[leastDone.id]?.find((t) => !t.locked);
     if (firstTopic) navigate(`/subject/${leastDone.id}/topic/${firstTopic.id}`);
   };
 
@@ -268,10 +270,12 @@ export default function HomeHub() {
           <button
             key={s.id}
             onClick={() => {
+              if (s.locked) return;
               playTap();
               navigate(`/subject/${s.id}`);
             }}
             className="tile"
+            aria-disabled={s.locked}
             style={{
               position: 'relative',
               background: palette.tileColors[i % palette.tileColors.length],
@@ -281,6 +285,8 @@ export default function HomeHub() {
               border: '4px solid #fff',
               overflow: 'hidden',
               textAlign: 'left',
+              opacity: s.locked ? 0.55 : 1,
+              cursor: s.locked ? 'default' : 'pointer',
             }}
           >
             {s.image ? (
@@ -295,6 +301,24 @@ export default function HomeHub() {
                   className={s.icon}
                   style={{ fontSize: 68, color: theme === 'adventure' ? palette.tileColors[i % palette.tileColors.length] : 'rgba(255,255,255,0.9)' }}
                 />
+              </div>
+            )}
+            {s.locked && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <i className="fa-solid fa-lock" style={{ fontSize: 13, color: '#fff' }} />
               </div>
             )}
             <div
@@ -319,6 +343,11 @@ export default function HomeHub() {
               >
                 {s.label}
               </div>
+              {s.locked && (
+                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
+                  Coming soon
+                </div>
+              )}
             </div>
           </button>
         ))}

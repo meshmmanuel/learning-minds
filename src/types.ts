@@ -12,12 +12,14 @@ export interface Subject {
   label: string;
   icon: string;
   image?: string;
+  locked?: boolean;
 }
 
 export interface Topic {
   id: string;
   label: string;
   icon: string;
+  locked?: boolean;
 }
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
