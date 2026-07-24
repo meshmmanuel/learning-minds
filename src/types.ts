@@ -21,7 +21,7 @@ export interface Topic {
 }
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
-export type QuestionsPerTopic = 10 | 20 | 30;
+export type QuestionsPerTopic = 1 | 10 | 20 | 30;
 
 export interface Reward {
   emoji: string;

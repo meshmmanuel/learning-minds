@@ -64,6 +64,7 @@ export default function ReloadPrompt() {
   const [canInstall, setCanInstall] = useState(canPromptInstall);
   const [showIosHint, setShowIosHint] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === '1');
 
   useEffect(() => {
     return subscribeInstallAvailability(() => setCanInstall(canPromptInstall()));
@@ -71,14 +72,14 @@ export default function ReloadPrompt() {
 
   useEffect(() => {
     if (isAppInstalled()) return;
-    const dismissed = localStorage.getItem(DISMISS_KEY) === '1';
     if (!dismissed && isIosDevice()) {
       setShowIosHint(true);
     }
-  }, []);
+  }, [dismissed]);
 
   const dismissInstall = () => {
     setShowIosHint(false);
+    setDismissed(true);
     localStorage.setItem(DISMISS_KEY, '1');
   };
 
@@ -110,7 +111,7 @@ export default function ReloadPrompt() {
   }
 
   // Banner only when not dismissed — Settings always has Install.
-  if (canInstall && localStorage.getItem(DISMISS_KEY) !== '1') {
+  if (canInstall && !dismissed) {
     return (
       <div role="alert" style={bannerStyle}>
         <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35 }}>

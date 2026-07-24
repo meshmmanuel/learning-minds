@@ -205,7 +205,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const claimReward: AppState['claimReward'] = (kidId) => {
-    withTodayRecord(kidId, (record) => ({ ...record, starsToday: 0, rewardPending: false }));
+    withTodayRecord(kidId, (record) => {
+      const topics = Object.fromEntries(
+        Object.entries(record.topics).map(([key, entry]) => [key, { ...entry, starsAwarded: false }]),
+      );
+      return { ...record, topics, starsToday: 0, rewardPending: false };
+    });
   };
 
   const resetTodayForKid: AppState['resetTodayForKid'] = (kidId) => {

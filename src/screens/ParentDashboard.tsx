@@ -15,14 +15,14 @@ import {
 } from '../pwa/installPrompt';
 
 const THEME_ORDER: ThemeName[] = ['calm', 'playful', 'adventure'];
-const QUESTIONS_OPTIONS: QuestionsPerTopic[] = [10, 20, 30];
+const QUESTIONS_OPTIONS: QuestionsPerTopic[] = [1, 10, 20, 30];
 const DIFFICULTY_OPTIONS: { value: Difficulty; label: string }[] = [
   { value: 'easy', label: 'Easy' },
   { value: 'normal', label: 'Normal' },
   { value: 'hard', label: 'Hard' },
 ];
-const STAR_TARGET_OPTIONS = [5, 10, 15, 20];
-const REWARD_EMOJI_OPTIONS = ['🍦', '🎬', '📺', '🍪', '🎨', '🎈', '🧸', '🍕', '🎮', '📚', '🚲', '🦄', '🌈', '🎁', '⭐', '🍩'];
+const STAR_TARGET_OPTIONS = [1, 5, 10, 15, 20];
+const REWARD_EMOJI_OPTIONS = ['🍦', '🎬', '📺', '🍪', '🎨', '🎈', '🧸', '🍕', '🎮', '📚', '🚲', '🦄', '🎁', '⭐', '🍩'];
 const MAX_REWARDS = 8;
 
 export default function ParentDashboard() {
