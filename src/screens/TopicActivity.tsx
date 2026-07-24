@@ -53,6 +53,8 @@ export default function TopicActivity() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
+  const [attemptsOnCurrent, setAttemptsOnCurrent] = useState(0);
+  const [strikes, setStrikes] = useState(0);
   const [phase, setPhase] = useState<Phase>('question');
   const [finishResult, setFinishResult] = useState<{ starsEarnedThisRun: number } | null>(null);
 
@@ -75,11 +77,33 @@ export default function TopicActivity() {
     nextMathQuestion();
     setAnsweredCount(0);
     setCorrectCount(0);
+    setAttemptsOnCurrent(0);
+    setStrikes(0);
     setPhase('question');
     setFinishResult(null);
   };
 
   if (!kid || !subject || !topic || !settings || subject.locked || topic.locked) return null;
+
+  const finishSession = (correct: number, answered: number, passed: boolean) => {
+    const result = completeTopicSession(kid.id, subject.id, topic.id, correct, answered, totalQuestions, passed);
+    playSound(FINISH_SOUND);
+    if (result.rewardReady) {
+      navigate('/home');
+      return;
+    }
+    if (passed) fireConfetti();
+    setFinishResult(result);
+    setPhase('finished');
+  };
+
+  const advanceQuestion = () => {
+    setQuestionIndex((i) => i + 1);
+    setCorrectIndex(Math.floor(Math.random() * 3));
+    nextMathQuestion();
+    setAttemptsOnCurrent(0);
+    setPhase('question');
+  };
 
   const commitAnswer = (isCorrect: boolean) => {
     const line = isCorrect ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : TRY_AGAIN[Math.floor(Math.random() * TRY_AGAIN.length)];
@@ -88,28 +112,47 @@ export default function TopicActivity() {
     if (isCorrect) fireConfetti();
     speak(line);
 
+    if (isCorrect) {
+      const nextAnswered = answeredCount + 1;
+      const nextCorrect = correctCount + 1;
+      setAnsweredCount(nextAnswered);
+      setCorrectCount(nextCorrect);
+      recordTopicProgress(kid.id, subject.id, topic.id, nextAnswered, nextCorrect);
+
+      setTimeout(() => {
+        if (nextAnswered >= totalQuestions) {
+          finishSession(nextCorrect, nextAnswered, true);
+        } else {
+          advanceQuestion();
+        }
+      }, FEEDBACK_DELAY);
+      return;
+    }
+
+    if (attemptsOnCurrent === 0) {
+      // First miss on this question — free retry, no strike yet.
+      setAttemptsOnCurrent(1);
+      setTimeout(() => {
+        setSelectedAnswer(null);
+        setPhase('question');
+      }, FEEDBACK_DELAY);
+      return;
+    }
+
+    // Second miss on this question — counts as a strike.
+    const nextStrikes = strikes + 1;
     const nextAnswered = answeredCount + 1;
-    const nextCorrect = correctCount + (isCorrect ? 1 : 0);
+    setStrikes(nextStrikes);
     setAnsweredCount(nextAnswered);
-    setCorrectCount(nextCorrect);
-    recordTopicProgress(kid.id, subject.id, topic.id, nextAnswered, nextCorrect);
+    recordTopicProgress(kid.id, subject.id, topic.id, nextAnswered, correctCount);
 
     setTimeout(() => {
-      if (nextAnswered >= totalQuestions) {
-        const result = completeTopicSession(kid.id, subject.id, topic.id, nextCorrect, totalQuestions);
-        playSound(FINISH_SOUND);
-        if (result.rewardReady) {
-          navigate('/home');
-          return;
-        }
-        fireConfetti();
-        setFinishResult(result);
-        setPhase('finished');
+      if (nextStrikes >= 2) {
+        finishSession(correctCount, nextAnswered, false);
+      } else if (nextAnswered >= totalQuestions) {
+        finishSession(correctCount, nextAnswered, true);
       } else {
-        setQuestionIndex((i) => i + 1);
-        setCorrectIndex(Math.floor(Math.random() * 3));
-        nextMathQuestion();
-        setPhase('question');
+        advanceQuestion();
       }
     }, FEEDBACK_DELAY);
   };

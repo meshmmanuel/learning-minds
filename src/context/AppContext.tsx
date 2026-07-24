@@ -39,7 +39,15 @@ interface AppState extends PersistedState {
   updateKidSettings: (kidId: string, partial: Partial<KidSettings>) => void;
   getTodayRecord: (kidId: string) => DailyRecord;
   recordTopicProgress: (kidId: string, subjectId: string, topicId: string, answered: number, correct: number) => void;
-  completeTopicSession: (kidId: string, subjectId: string, topicId: string, correct: number, planned: number) => CompleteResult;
+  completeTopicSession: (
+    kidId: string,
+    subjectId: string,
+    topicId: string,
+    correct: number,
+    answered: number,
+    planned: number,
+    passed: boolean,
+  ) => CompleteResult;
   claimReward: (kidId: string) => void;
   resetTodayForKid: (kidId: string) => void;
   resetAllProgressForKid: (kidId: string) => void;
@@ -153,14 +161,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLastPlayDate((prev) => ({ ...prev, [kidId]: todayStr() }));
   };
 
-  const completeTopicSession: AppState['completeTopicSession'] = (kidId, subjectId, topicId, correct, planned) => {
+  const completeTopicSession: AppState['completeTopicSession'] = (kidId, subjectId, topicId, correct, answered, planned, passed) => {
     const settings = getKidSettings(kidId);
     const key = topicKey(subjectId, topicId);
     const stored = dailyRecords[kidId];
     const record = stored && stored.date === todayStr() ? { ...emptyDailyRecord(), ...stored } : emptyDailyRecord();
 
     const existing = record.topics[key];
-    const runGrade = planned > 0 ? Math.round((100 * correct) / planned) : 0;
+    const runGrade = answered > 0 ? Math.round((100 * correct) / answered) : 0;
     const gradePercent = existing?.gradePercent != null ? Math.max(existing.gradePercent, runGrade) : runGrade;
 
     let starsEarned = existing?.starsEarned ?? 0;
@@ -168,7 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let starsToday = record.starsToday;
     let starsEarnedThisRun = 0;
 
-    if (!starsAwarded && settings.rewardsEnabled) {
+    if (!starsAwarded && settings.rewardsEnabled && passed) {
       starsEarned = computeStars();
       starsAwarded = true;
       starsToday = record.starsToday + starsEarned;
@@ -181,7 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       subjectId,
       topicId,
       questionsPlanned: planned,
-      answered: planned,
+      answered,
       correct,
       completed: true,
       gradePercent,
