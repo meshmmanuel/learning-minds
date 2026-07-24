@@ -22,6 +22,8 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string }[] = [
   { value: 'hard', label: 'Hard' },
 ];
 const STAR_TARGET_OPTIONS = [5, 10, 15, 20];
+const REWARD_EMOJI_OPTIONS = ['🍦', '🎬', '📺', '🍪', '🎨', '🎈', '🧸', '🍕', '🎮', '📚', '🚲', '🦄', '🌈', '🎁', '⭐', '🍩'];
+const MAX_REWARDS = 8;
 
 export default function ParentDashboard() {
   const {
@@ -65,6 +67,21 @@ export default function ParentDashboard() {
   const [canInstall, setCanInstall] = useState(canPromptInstall);
   const [installing, setInstalling] = useState(false);
   const [showIosSteps, setShowIosSteps] = useState(false);
+  const [newRewardEmoji, setNewRewardEmoji] = useState(REWARD_EMOJI_OPTIONS[0]);
+  const [newRewardLabel, setNewRewardLabel] = useState('');
+
+  const handleAddReward = () => {
+    if (!kid || !settings) return;
+    const label = newRewardLabel.trim();
+    if (!label || settings.rewards.length >= MAX_REWARDS) return;
+    updateKidSettings(kid.id, { rewards: [...settings.rewards, { emoji: newRewardEmoji, label }] });
+    setNewRewardLabel('');
+  };
+
+  const handleRemoveReward = (index: number) => {
+    if (!kid || !settings) return;
+    updateKidSettings(kid.id, { rewards: settings.rewards.filter((_, i) => i !== index) });
+  };
 
   useEffect(() => {
     return subscribeInstallAvailability(() => {
@@ -263,7 +280,7 @@ export default function ParentDashboard() {
               {settings.rewardsEnabled && (
                 <span>
                   Stars: {Math.min(todayRecord.starsToday, settings.dailyStarTarget)}/{settings.dailyStarTarget}
-                  {todayRecord.goalReached ? ' — Goal reached!' : ''}
+                  {todayRecord.rewardPending ? ' — Reward ready!' : ''}
                 </span>
               )}
               <span>
@@ -402,6 +419,126 @@ export default function ParentDashboard() {
                     );
                   })}
                 </div>
+
+                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
+                  Possible rewards
+                </span>
+                {settings.rewards.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {settings.rewards.map((r, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: '#fff',
+                          borderRadius: 14,
+                          padding: '10px 14px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "'Nunito', sans-serif",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            color: '#3E3B34',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                          }}
+                        >
+                          <span style={{ fontSize: 18 }}>{r.emoji}</span>
+                          {r.label}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveReward(i)}
+                          aria-label={`Remove ${r.label}`}
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            background: '#F7F5F0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <i className="fa-solid fa-xmark" style={{ fontSize: 13, color: '#8C8474' }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {settings.rewards.length < MAX_REWARDS ? (
+                  <div style={{ background: '#fff', borderRadius: 16, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {REWARD_EMOJI_OPTIONS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => setNewRewardEmoji(emoji)}
+                          className="tile"
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: '50%',
+                            fontSize: 17,
+                            background: newRewardEmoji === emoji ? '#FFF0EC' : '#F7F5F0',
+                            border: `2px solid ${newRewardEmoji === emoji ? palette.swatch : 'transparent'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        value={newRewardLabel}
+                        onChange={(e) => setNewRewardLabel(e.target.value)}
+                        placeholder="Reward name (e.g. Ice cream)"
+                        maxLength={24}
+                        style={{
+                          flex: 1,
+                          background: '#F7F5F0',
+                          borderRadius: 12,
+                          padding: '10px 14px',
+                          fontFamily: "'Nunito', sans-serif",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          color: '#3E3B34',
+                          border: 'none',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        onClick={handleAddReward}
+                        disabled={!newRewardLabel.trim()}
+                        className="tile"
+                        style={{
+                          borderRadius: 12,
+                          padding: '10px 18px',
+                          background: newRewardLabel.trim() ? palette.accent : '#D8D3C4',
+                          fontFamily: "'Baloo 2', sans-serif",
+                          fontWeight: 800,
+                          fontSize: 13,
+                          color: '#fff',
+                          flexShrink: 0,
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 12, color: '#8C8474' }}>
+                    Max {MAX_REWARDS} rewards — remove one to add another.
+                  </span>
+                )}
               </div>
             )}
           </div>

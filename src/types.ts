@@ -23,11 +23,17 @@ export interface Topic {
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type QuestionsPerTopic = 10 | 20 | 30;
 
+export interface Reward {
+  emoji: string;
+  label: string;
+}
+
 export interface KidSettings {
   questionsPerTopic: QuestionsPerTopic;
   difficulty: Difficulty;
   rewardsEnabled: boolean;
   dailyStarTarget: number;
+  rewards: Reward[];
 }
 
 export interface TopicSessionRecord {
@@ -47,5 +53,5 @@ export interface DailyRecord {
   date: string;
   topics: Record<string, TopicSessionRecord>;
   starsToday: number;
-  goalReached: boolean;
+  rewardPending: boolean;
 }

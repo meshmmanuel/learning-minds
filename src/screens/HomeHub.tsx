@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { subjects, topicsBySubject } from '../data/subjects';
 import FloatingShapes from '../components/FloatingShapes';
+import RewardModal from '../components/RewardModal';
 import { playTap } from '../utils/sound';
 import { subjectTopicsCompletedToday } from '../utils/progress';
 
@@ -51,6 +52,7 @@ export default function HomeHub() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+      {todayRecord.rewardPending && <RewardModal kid={kid} settings={settings} />}
       <FloatingShapes theme={theme} />
       <div
         style={{
@@ -87,14 +89,14 @@ export default function HomeHub() {
                 background: 'rgba(255,255,255,0.25)',
                 borderRadius: 999,
                 padding: '8px 16px',
-                animation: todayRecord.goalReached ? 'pulseSoft 1.4s ease-in-out infinite' : undefined,
+                animation: todayRecord.rewardPending ? 'pulseSoft 1.4s ease-in-out infinite' : undefined,
               }}
             >
               <i className="fa-solid fa-star" style={{ color: palette.starColor }} />
               <span style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 15, color: palette.headerText }}>
                 {Math.min(todayRecord.starsToday, settings.dailyStarTarget)} / {settings.dailyStarTarget}
               </span>
-              {todayRecord.goalReached && (
+              {todayRecord.rewardPending && (
                 <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 11, color: palette.headerText }}>
                   Reward unlocked!
                 </span>

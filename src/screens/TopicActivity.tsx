@@ -54,9 +54,7 @@ export default function TopicActivity() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [phase, setPhase] = useState<Phase>('question');
-  const [finishResult, setFinishResult] = useState<{ starsEarnedThisRun: number; goalJustReached: boolean } | null>(
-    null,
-  );
+  const [finishResult, setFinishResult] = useState<{ starsEarnedThisRun: number } | null>(null);
 
   const numberLineWindow = useMemo(() => getNumberLineWindow(mathQ, difficulty), [mathQ, difficulty]);
 
@@ -100,7 +98,11 @@ export default function TopicActivity() {
       if (nextAnswered >= totalQuestions) {
         const result = completeTopicSession(kid.id, subject.id, topic.id, nextCorrect, totalQuestions);
         playSound(FINISH_SOUND);
-        fireConfetti({ big: result.goalJustReached });
+        if (result.rewardReady) {
+          navigate('/home');
+          return;
+        }
+        fireConfetti();
         setFinishResult(result);
         setPhase('finished');
       } else {
@@ -160,22 +162,6 @@ export default function TopicActivity() {
               <i className="fa-solid fa-star" style={{ color: palette.starColor }} />
               {starsThisRun > 0 ? `You earned ${starsThisRun} star${starsThisRun > 1 ? 's' : ''}!` : 'Great practice!'}
             </div>
-            {finishResult.goalJustReached && (
-              <div
-                style={{
-                  fontFamily: "'Baloo 2', sans-serif",
-                  fontWeight: 800,
-                  fontSize: 18,
-                  color: '#fff',
-                  background: palette.accent,
-                  padding: '10px 20px',
-                  borderRadius: 999,
-                  animation: 'popIn 0.4s ease-out',
-                }}
-              >
-                You hit your star goal! <i className="fa-solid fa-trophy" />
-              </div>
-            )}
           </div>
         )}
 

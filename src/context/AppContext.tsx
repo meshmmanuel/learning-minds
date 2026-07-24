@@ -8,10 +8,11 @@ const DEFAULT_SETTINGS: KidSettings = {
   difficulty: 'normal',
   rewardsEnabled: true,
   dailyStarTarget: 10,
+  rewards: [],
 };
 
 function emptyDailyRecord(): DailyRecord {
-  return { date: todayStr(), topics: {}, starsToday: 0, goalReached: false };
+  return { date: todayStr(), topics: {}, starsToday: 0, rewardPending: false };
 }
 
 interface PersistedState {
@@ -26,7 +27,7 @@ interface PersistedState {
 
 interface CompleteResult {
   starsEarnedThisRun: number;
-  goalJustReached: boolean;
+  rewardReady: boolean;
 }
 
 interface AppState extends PersistedState {
@@ -39,6 +40,7 @@ interface AppState extends PersistedState {
   getTodayRecord: (kidId: string) => DailyRecord;
   recordTopicProgress: (kidId: string, subjectId: string, topicId: string, answered: number, correct: number) => void;
   completeTopicSession: (kidId: string, subjectId: string, topicId: string, correct: number, planned: number) => CompleteResult;
+  claimReward: (kidId: string) => void;
   resetTodayForKid: (kidId: string) => void;
   resetAllProgressForKid: (kidId: string) => void;
 }
@@ -96,11 +98,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setTheme = (t: ThemeName) => setThemeState(t);
   const setGateEnabled = (v: boolean) => setGateEnabledState(v);
 
-  const getKidSettings: AppState['getKidSettings'] = (kidId) => kidSettings[kidId] ?? DEFAULT_SETTINGS;
+  const getKidSettings: AppState['getKidSettings'] = (kidId) => {
+    const stored = kidSettings[kidId];
+    return stored ? { ...DEFAULT_SETTINGS, ...stored } : DEFAULT_SETTINGS;
+  };
 
   const updateKidSettings: AppState['updateKidSettings'] = (kidId, partial) => {
     setKidSettings((prev) => {
-      const current = prev[kidId] ?? DEFAULT_SETTINGS;
+      const current = { ...DEFAULT_SETTINGS, ...prev[kidId] };
       const next = { ...current, ...partial };
       if (next.dailyStarTarget < 1) next.dailyStarTarget = 1;
       return { ...prev, [kidId]: next };
@@ -109,7 +114,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const getTodayRecord: AppState['getTodayRecord'] = (kidId) => {
     const record = dailyRecords[kidId];
-    if (record && record.date === todayStr()) return record;
+    if (record && record.date === todayStr()) return { ...emptyDailyRecord(), ...record };
     return emptyDailyRecord();
   };
 
@@ -119,7 +124,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ) {
     setDailyRecords((prev) => {
       const existing = prev[kidId];
-      const base = existing && existing.date === todayStr() ? existing : emptyDailyRecord();
+      const base = existing && existing.date === todayStr() ? { ...emptyDailyRecord(), ...existing } : emptyDailyRecord();
       return { ...prev, [kidId]: updater(base) };
     });
   }
@@ -151,51 +156,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const completeTopicSession: AppState['completeTopicSession'] = (kidId, subjectId, topicId, correct, planned) => {
     const settings = getKidSettings(kidId);
     const key = topicKey(subjectId, topicId);
-    const result: CompleteResult = { starsEarnedThisRun: 0, goalJustReached: false };
+    const stored = dailyRecords[kidId];
+    const record = stored && stored.date === todayStr() ? { ...emptyDailyRecord(), ...stored } : emptyDailyRecord();
 
-    withTodayRecord(kidId, (record) => {
-      const existing = record.topics[key];
-      const runGrade = planned > 0 ? Math.round((100 * correct) / planned) : 0;
-      const gradePercent = existing?.gradePercent != null ? Math.max(existing.gradePercent, runGrade) : runGrade;
+    const existing = record.topics[key];
+    const runGrade = planned > 0 ? Math.round((100 * correct) / planned) : 0;
+    const gradePercent = existing?.gradePercent != null ? Math.max(existing.gradePercent, runGrade) : runGrade;
 
-      let starsEarned = existing?.starsEarned ?? 0;
-      let starsAwarded = existing?.starsAwarded ?? false;
-      let starsToday = record.starsToday;
+    let starsEarned = existing?.starsEarned ?? 0;
+    let starsAwarded = existing?.starsAwarded ?? false;
+    let starsToday = record.starsToday;
+    let starsEarnedThisRun = 0;
 
-      if (!starsAwarded && settings.rewardsEnabled) {
-        starsEarned = computeStars(correct, planned);
-        starsAwarded = true;
-        starsToday = record.starsToday + starsEarned;
-        result.starsEarnedThisRun = starsEarned;
-      }
+    if (!starsAwarded && settings.rewardsEnabled) {
+      starsEarned = computeStars();
+      starsAwarded = true;
+      starsToday = record.starsToday + starsEarned;
+      starsEarnedThisRun = starsEarned;
+    }
 
-      const goalReached =
-        record.goalReached || (settings.rewardsEnabled && starsToday >= settings.dailyStarTarget);
-      result.goalJustReached = goalReached && !record.goalReached;
+    const crossed = settings.rewardsEnabled && !record.rewardPending && starsToday >= settings.dailyStarTarget;
 
-      const entry: TopicSessionRecord = {
-        subjectId,
-        topicId,
-        questionsPlanned: planned,
-        answered: planned,
-        correct,
-        completed: true,
-        gradePercent,
-        starsEarned,
-        starsAwarded,
-        completedAt: new Date().toISOString(),
-      };
+    const entry: TopicSessionRecord = {
+      subjectId,
+      topicId,
+      questionsPlanned: planned,
+      answered: planned,
+      correct,
+      completed: true,
+      gradePercent,
+      starsEarned,
+      starsAwarded,
+      completedAt: new Date().toISOString(),
+    };
 
-      return {
+    setDailyRecords((prev) => ({
+      ...prev,
+      [kidId]: {
         ...record,
         topics: { ...record.topics, [key]: entry },
         starsToday,
-        goalReached,
-      };
-    });
+        rewardPending: crossed || record.rewardPending,
+      },
+    }));
     setLastPlayDate((prev) => ({ ...prev, [kidId]: todayStr() }));
 
-    return result;
+    return { starsEarnedThisRun, rewardReady: crossed };
+  };
+
+  const claimReward: AppState['claimReward'] = (kidId) => {
+    withTodayRecord(kidId, (record) => ({ ...record, starsToday: 0, rewardPending: false }));
   };
 
   const resetTodayForKid: AppState['resetTodayForKid'] = (kidId) => {
@@ -230,6 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getTodayRecord,
         recordTopicProgress,
         completeTopicSession,
+        claimReward,
         resetTodayForKid,
         resetAllProgressForKid,
       }}
