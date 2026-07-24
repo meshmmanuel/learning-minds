@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
@@ -25,6 +25,38 @@ const STAR_TARGET_OPTIONS = [1, 5, 10, 15, 20];
 const REWARD_EMOJI_OPTIONS = ['🍦', '🎬', '📺', '🍪', '🎨', '🎈', '🧸', '🍕', '🎮', '📚', '🚲', '🦄', '🎁', '⭐', '🍩'];
 const MAX_REWARDS = 8;
 
+type Section = 'overview' | 'play' | 'rewards' | 'danger' | 'device';
+
+interface NavItem {
+  id: Section;
+  label: string;
+  icon: string;
+  danger?: boolean;
+}
+
+const KID_NAV_ITEMS: NavItem[] = [
+  { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-simple' },
+  { id: 'play', label: 'Play settings', icon: 'fa-solid fa-sliders' },
+  { id: 'rewards', label: 'Rewards', icon: 'fa-solid fa-gift' },
+  { id: 'danger', label: 'Danger zone', icon: 'fa-solid fa-triangle-exclamation', danger: true },
+];
+
+const DEVICE_NAV_ITEM: NavItem = { id: 'device', label: 'Device', icon: 'fa-solid fa-mobile-screen-button' };
+
+const sectionLabel: CSSProperties = {
+  fontFamily: "'Baloo 2', sans-serif",
+  fontWeight: 700,
+  fontSize: 15,
+  color: '#2E2B26',
+};
+
+const fieldLabel: CSSProperties = {
+  fontFamily: "'Nunito', sans-serif",
+  fontWeight: 700,
+  fontSize: 13,
+  color: '#5B4A1E',
+};
+
 export default function ParentDashboard() {
   const {
     theme,
@@ -42,6 +74,8 @@ export default function ParentDashboard() {
   } = useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
+
+  const [section, setSection] = useState<Section>('overview');
 
   const kid = kids.find((k) => k.id === activeKidId);
   const settings = kid ? getKidSettings(kid.id) : null;
@@ -106,9 +140,38 @@ export default function ParentDashboard() {
     }
   };
 
+  const navButtonStyle = (active: boolean, danger?: boolean): CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 14px',
+    borderRadius: 14,
+    background: active ? (danger ? '#FDECEC' : '#FFF0EC') : 'transparent',
+    border: `2px solid ${active ? (danger ? '#D64545' : palette.swatch) : 'transparent'}`,
+    fontFamily: "'Nunito', sans-serif",
+    fontWeight: 800,
+    fontSize: 13,
+    color: danger ? '#D64545' : active ? '#3E3B34' : '#8F887A',
+    textAlign: 'left',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+  });
+
+  const renderNavButton = (item: NavItem) => (
+    <button
+      key={item.id}
+      onClick={() => setSection(item.id)}
+      className="tile"
+      style={navButtonStyle(section === item.id, item.danger)}
+    >
+      <i className={item.icon} style={{ fontSize: 14, width: 16, textAlign: 'center' }} />
+      {item.label}
+    </button>
+  );
+
   return (
     <div style={{ minHeight: '100vh', background: '#F7F5F0', display: 'flex', justifyContent: 'center', padding: '24px 16px' }}>
-      <div style={{ width: '100%', maxWidth: 640, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
             display: 'flex',
@@ -138,558 +201,601 @@ export default function ParentDashboard() {
           </button>
         </div>
 
-        <div style={{ padding: '22px 8px', display: 'flex', flexDirection: 'column', gap: 10, borderBottom: '1px solid #E5E1D6' }}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>App theme</div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {THEME_ORDER.map((name) => {
-              const p = themes[name];
-              const isSelected = name === theme;
-              return (
-                <button
-                  key={name}
-                  onClick={() => setTheme(name)}
-                  className="tile"
-                  style={{
-                    flex: '1 1 150px',
-                    borderRadius: 16,
-                    padding: '12px 14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    background: isSelected ? '#FFF0EC' : '#F7F5F0',
-                    border: `2px solid ${isSelected ? p.swatch : '#DDD8C8'}`,
-                  }}
-                >
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: p.swatch, flexShrink: 0 }} />
-                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 13, color: '#3E3B34' }}>{p.label}</span>
-                  <i
-                    className={isSelected ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'}
-                    style={{ marginLeft: 'auto', color: '#3E3B34' }}
+        <div className="dashboardRail" style={{ display: 'flex', gap: 28, marginTop: 22, alignItems: 'flex-start' }}>
+          <div className="dashboardNav" style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {kid && settings && todayRecord && settings.rewardsEnabled && (
+              <div
+                style={{
+                  background: '#fff',
+                  borderRadius: 16,
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 13, color: '#5B4A1E' }}>
+                  <i className="fa-solid fa-star" style={{ color: palette.starColor }} />
+                  {Math.min(todayRecord.starsToday, settings.dailyStarTarget)}/{settings.dailyStarTarget} today
+                </div>
+                <div style={{ height: 8, background: '#E9E5D9', borderRadius: 999, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${Math.min(100, (todayRecord.starsToday / settings.dailyStarTarget) * 100)}%`,
+                      height: '100%',
+                      background: palette.starColor,
+                      borderRadius: 999,
+                      transition: 'width 0.4s',
+                    }}
                   />
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                </div>
+              </div>
+            )}
 
-        {kid && todayRecord && (
-          <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 14, borderBottom: '1px solid #E5E1D6' }}>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>
-              {kid.name}'s subjects today
+            <div className="dashboardNavList" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {KID_NAV_ITEMS.map(renderNavButton)}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {subjects.map((s, i) => {
-                const pct = subjectTodayPercent(s.id, todayRecord);
-                const color = palette.tileColors[i % palette.tileColors.length];
-                return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
+            <div className="dashboardNavDivider" style={{ height: 1, background: '#E5E1D6' }} />
+
+            <div>
+              {renderNavButton(DEVICE_NAV_ITEM)}
+              <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 11, color: '#8F887A', padding: '4px 14px 0' }}>
+                Applies to all kids
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {section === 'overview' && kid && settings && todayRecord && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={sectionLabel}>Today's work</div>
+                  {todayEntries.length === 0 ? (
+                    <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 13, color: '#8F887A' }}>
+                      No topics played yet today.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {todayEntries.map((entry) => {
+                        const subj = subjects.find((s) => s.id === entry.subjectId);
+                        const top = topicsBySubject[entry.subjectId]?.find((t) => t.id === entry.topicId);
+                        return (
+                          <div
+                            key={`${entry.subjectId}:${entry.topicId}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: '#fff',
+                              borderRadius: 14,
+                              padding: '10px 14px',
+                              gap: 12,
+                            }}
+                          >
+                            <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#3E3B34' }}>
+                              {subj?.label ?? entry.subjectId} · {top?.label ?? entry.topicId}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                              <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A' }}>
+                                {entry.completed
+                                  ? `${entry.correct}/${entry.answered} correct (${entry.gradePercent}%)`
+                                  : `In progress ${entry.answered}/${entry.questionsPlanned}`}
+                              </span>
+                              {settings.rewardsEnabled && entry.starsAwarded && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <i className="fa-solid fa-star" style={{ fontSize: 12, color: palette.starColor }} />
+                                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A' }}>
+                                    {entry.starsEarned}
+                                  </span>
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 14,
+                      background: '#fff',
+                      borderRadius: 14,
+                      padding: '12px 16px',
+                      fontFamily: "'Nunito', sans-serif",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      color: '#5B4A1E',
+                    }}
+                  >
+                    <span>Topics finished: {topicsFinishedToday}</span>
+                    <span>Questions today: {totalQuestionsToday}</span>
+                    {settings.rewardsEnabled && (
+                      <span>
+                        Stars: {Math.min(todayRecord.starsToday, settings.dailyStarTarget)}/{settings.dailyStarTarget}
+                        {todayRecord.rewardPending ? ' — Reward ready!' : ''}
+                      </span>
+                    )}
+                    <span>
+                      {daysAway === null ? 'Not started yet' : daysAway === 0 ? 'Played today' : `Away ${daysAway} day${daysAway > 1 ? 's' : ''}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={sectionLabel}>{kid.name}'s subjects today</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {subjects.map((s, i) => {
+                      const pct = subjectTodayPercent(s.id, todayRecord);
+                      const color = palette.tileColors[i % palette.tileColors.length];
+                      return (
+                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 10,
+                              background: color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <i className={s.icon} style={{ fontSize: 13, color: '#fff' }} />
+                          </div>
+                          <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#3E3B34', width: 150, flexShrink: 0 }}>
+                            {s.label}
+                          </span>
+                          <div style={{ flex: 1, height: 12, background: '#E9E5D9', borderRadius: 999, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999, transition: 'width 0.4s' }} />
+                          </div>
+                          <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A', width: 36, textAlign: 'right' }}>
+                            {pct}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {section === 'play' && kid && settings && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={sectionLabel}>Play settings</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span style={fieldLabel}>Questions per topic</span>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {QUESTIONS_OPTIONS.map((n) => {
+                      const isSelected = settings.questionsPerTopic === n;
+                      return (
+                        <button
+                          key={n}
+                          onClick={() => updateKidSettings(kid.id, { questionsPerTopic: n })}
+                          className="tile"
+                          style={{
+                            flex: '1 1 90px',
+                            borderRadius: 14,
+                            padding: '10px 14px',
+                            background: isSelected ? '#FFF0EC' : '#F7F5F0',
+                            border: `2px solid ${isSelected ? palette.swatch : '#DDD8C8'}`,
+                            fontFamily: "'Nunito', sans-serif",
+                            fontWeight: 800,
+                            fontSize: 14,
+                            color: '#3E3B34',
+                          }}
+                        >
+                          {n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span style={fieldLabel}>Difficulty</span>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {DIFFICULTY_OPTIONS.map(({ value, label }) => {
+                      const isSelected = settings.difficulty === value;
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => updateKidSettings(kid.id, { difficulty: value })}
+                          className="tile"
+                          style={{
+                            flex: '1 1 90px',
+                            borderRadius: 14,
+                            padding: '10px 14px',
+                            background: isSelected ? '#FFF0EC' : '#F7F5F0',
+                            border: `2px solid ${isSelected ? palette.swatch : '#DDD8C8'}`,
+                            fontFamily: "'Nunito', sans-serif",
+                            fontWeight: 800,
+                            fontSize: 14,
+                            color: '#3E3B34',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {section === 'rewards' && kid && settings && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={sectionLabel}>Rewards</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 16, padding: '14px 18px' }}>
+                  <span style={fieldLabel}>Stars &amp; daily goal</span>
+                  <button
+                    onClick={() => updateKidSettings(kid.id, { rewardsEnabled: !settings.rewardsEnabled })}
+                    aria-label="Toggle rewards"
+                    style={{
+                      width: 52,
+                      height: 30,
+                      borderRadius: 999,
+                      background: settings.rewardsEnabled ? '#3DDC97' : '#D8D3C4',
+                      position: 'relative',
+                      transition: 'background 0.2s',
+                      flexShrink: 0,
+                    }}
+                  >
                     <div
                       style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 10,
-                        background: color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: '#fff',
+                        position: 'absolute',
+                        top: 3,
+                        left: settings.rewardsEnabled ? 25 : 3,
+                        transition: 'left 0.2s',
+                      }}
+                    />
+                  </button>
+                </div>
+                {settings.rewardsEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <span style={fieldLabel}>Daily star target</span>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {STAR_TARGET_OPTIONS.map((n) => {
+                        const isSelected = settings.dailyStarTarget === n;
+                        return (
+                          <button
+                            key={n}
+                            onClick={() => updateKidSettings(kid.id, { dailyStarTarget: n })}
+                            className="tile"
+                            style={{
+                              flex: '1 1 70px',
+                              borderRadius: 14,
+                              padding: '10px 14px',
+                              background: isSelected ? '#FFF0EC' : '#F7F5F0',
+                              border: `2px solid ${isSelected ? palette.swatch : '#DDD8C8'}`,
+                              fontFamily: "'Nunito', sans-serif",
+                              fontWeight: 800,
+                              fontSize: 14,
+                              color: '#3E3B34',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <i className="fa-solid fa-star" style={{ fontSize: 12, color: palette.starColor }} />
+                            {n}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <span style={fieldLabel}>Possible rewards</span>
+                    {settings.rewards.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {settings.rewards.map((r, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: '#fff',
+                              borderRadius: 14,
+                              padding: '10px 14px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: "'Nunito', sans-serif",
+                                fontWeight: 700,
+                                fontSize: 14,
+                                color: '#3E3B34',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                              }}
+                            >
+                              <span style={{ fontSize: 18 }}>{r.emoji}</span>
+                              {r.label}
+                            </span>
+                            <button
+                              onClick={() => handleRemoveReward(i)}
+                              aria-label={`Remove ${r.label}`}
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: '50%',
+                                background: '#F7F5F0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <i className="fa-solid fa-xmark" style={{ fontSize: 13, color: '#8C8474' }} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {settings.rewards.length < MAX_REWARDS ? (
+                      <div style={{ background: '#fff', borderRadius: 16, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {REWARD_EMOJI_OPTIONS.map((emoji) => (
+                            <button
+                              key={emoji}
+                              onClick={() => setNewRewardEmoji(emoji)}
+                              className="tile"
+                              style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: '50%',
+                                fontSize: 17,
+                                background: newRewardEmoji === emoji ? '#FFF0EC' : '#F7F5F0',
+                                border: `2px solid ${newRewardEmoji === emoji ? palette.swatch : 'transparent'}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <input
+                            value={newRewardLabel}
+                            onChange={(e) => setNewRewardLabel(e.target.value)}
+                            placeholder="Reward name (e.g. Ice cream)"
+                            maxLength={24}
+                            style={{
+                              flex: 1,
+                              background: '#F7F5F0',
+                              borderRadius: 12,
+                              padding: '10px 14px',
+                              fontFamily: "'Nunito', sans-serif",
+                              fontWeight: 700,
+                              fontSize: 13,
+                              color: '#3E3B34',
+                              border: 'none',
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            onClick={handleAddReward}
+                            disabled={!newRewardLabel.trim()}
+                            className="tile"
+                            style={{
+                              borderRadius: 12,
+                              padding: '10px 18px',
+                              background: newRewardLabel.trim() ? palette.accent : '#D8D3C4',
+                              fontFamily: "'Baloo 2', sans-serif",
+                              fontWeight: 800,
+                              fontSize: 13,
+                              color: '#fff',
+                              flexShrink: 0,
+                            }}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 12, color: '#8C8474' }}>
+                        Max {MAX_REWARDS} rewards — remove one to add another.
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {section === 'danger' && kid && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ ...sectionLabel, color: '#D64545' }}>Danger zone</div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleResetToday}
+                    className="tile"
+                    style={{
+                      flex: '1 1 160px',
+                      padding: '12px 18px',
+                      borderRadius: 14,
+                      background: '#fff',
+                      border: '2px solid #DDD8C8',
+                      fontFamily: "'Nunito', sans-serif",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      color: '#5B4A1E',
+                    }}
+                  >
+                    <i className="fa-solid fa-arrow-rotate-left" style={{ marginRight: 8 }} />
+                    Reset today
+                  </button>
+                  <button
+                    onClick={handleResetAll}
+                    className="tile"
+                    style={{
+                      flex: '1 1 160px',
+                      padding: '12px 18px',
+                      borderRadius: 14,
+                      background: '#FDECEC',
+                      border: '2px solid #D64545',
+                      fontFamily: "'Nunito', sans-serif",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      color: '#D64545',
+                    }}
+                  >
+                    <i className="fa-solid fa-trash" style={{ marginRight: 8 }} />
+                    Reset all progress
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {section === 'device' && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={sectionLabel}>App theme</div>
+                  <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 12, color: '#8F887A' }}>
+                    Applies to every kid profile on this device.
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {THEME_ORDER.map((name) => {
+                      const p = themes[name];
+                      const isSelected = name === theme;
+                      return (
+                        <button
+                          key={name}
+                          onClick={() => setTheme(name)}
+                          className="tile"
+                          style={{
+                            flex: '1 1 150px',
+                            borderRadius: 16,
+                            padding: '12px 14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            background: isSelected ? '#FFF0EC' : '#F7F5F0',
+                            border: `2px solid ${isSelected ? p.swatch : '#DDD8C8'}`,
+                          }}
+                        >
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: p.swatch, flexShrink: 0 }} />
+                          <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 13, color: '#3E3B34' }}>{p.label}</span>
+                          <i
+                            className={isSelected ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'}
+                            style={{ marginLeft: 'auto', color: '#3E3B34' }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={sectionLabel}>Grown-up gate</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 16, padding: '14px 18px' }}>
+                    <span style={fieldLabel}>Require a math question to enter Settings</span>
+                    <button
+                      onClick={() => setGateEnabled(!gateEnabled)}
+                      aria-label="Toggle grown-up gate"
+                      style={{
+                        width: 52,
+                        height: 30,
+                        borderRadius: 999,
+                        background: gateEnabled ? '#3DDC97' : '#D8D3C4',
+                        position: 'relative',
+                        transition: 'background 0.2s',
                         flexShrink: 0,
                       }}
                     >
-                      <i className={s.icon} style={{ fontSize: 13, color: '#fff' }} />
-                    </div>
-                    <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#3E3B34', width: 150, flexShrink: 0 }}>
-                      {s.label}
-                    </span>
-                    <div style={{ flex: 1, height: 12, background: '#E9E5D9', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999, transition: 'width 0.4s' }} />
-                    </div>
-                    <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A', width: 36, textAlign: 'right' }}>
-                      {pct}%
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {kid && settings && todayRecord && (
-          <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: '1px solid #E5E1D6' }}>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>Today's work</div>
-            {todayEntries.length === 0 ? (
-              <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 13, color: '#8F887A' }}>
-                No topics played yet today.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {todayEntries.map((entry) => {
-                  const subj = subjects.find((s) => s.id === entry.subjectId);
-                  const top = topicsBySubject[entry.subjectId]?.find((t) => t.id === entry.topicId);
-                  return (
-                    <div
-                      key={`${entry.subjectId}:${entry.topicId}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: '#fff',
-                        borderRadius: 14,
-                        padding: '10px 14px',
-                        gap: 12,
-                      }}
-                    >
-                      <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#3E3B34' }}>
-                        {subj?.label ?? entry.subjectId} · {top?.label ?? entry.topicId}
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                        <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A' }}>
-                          {entry.completed
-                            ? `${entry.correct}/${entry.answered} correct (${entry.gradePercent}%)`
-                            : `In progress ${entry.answered}/${entry.questionsPlanned}`}
-                        </span>
-                        {settings.rewardsEnabled && entry.starsAwarded && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <i className="fa-solid fa-star" style={{ fontSize: 12, color: palette.starColor }} />
-                            <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A' }}>
-                              {entry.starsEarned}
-                            </span>
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 14,
-                background: '#fff',
-                borderRadius: 14,
-                padding: '12px 16px',
-                fontFamily: "'Nunito', sans-serif",
-                fontWeight: 700,
-                fontSize: 12,
-                color: '#5B4A1E',
-              }}
-            >
-              <span>Topics finished: {topicsFinishedToday}</span>
-              <span>Questions today: {totalQuestionsToday}</span>
-              {settings.rewardsEnabled && (
-                <span>
-                  Stars: {Math.min(todayRecord.starsToday, settings.dailyStarTarget)}/{settings.dailyStarTarget}
-                  {todayRecord.rewardPending ? ' — Reward ready!' : ''}
-                </span>
-              )}
-              <span>
-                {daysAway === null ? 'Not started yet' : daysAway === 0 ? 'Played today' : `Away ${daysAway} day${daysAway > 1 ? 's' : ''}`}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {kid && settings && (
-          <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 14, borderBottom: '1px solid #E5E1D6' }}>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>Session settings</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>Questions per topic</span>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {QUESTIONS_OPTIONS.map((n) => {
-                  const isSelected = settings.questionsPerTopic === n;
-                  return (
-                    <button
-                      key={n}
-                      onClick={() => updateKidSettings(kid.id, { questionsPerTopic: n })}
-                      className="tile"
-                      style={{
-                        flex: '1 1 90px',
-                        borderRadius: 14,
-                        padding: '10px 14px',
-                        background: isSelected ? '#FFF0EC' : '#F7F5F0',
-                        border: `2px solid ${isSelected ? palette.swatch : '#DDD8C8'}`,
-                        fontFamily: "'Nunito', sans-serif",
-                        fontWeight: 800,
-                        fontSize: 14,
-                        color: '#3E3B34',
-                      }}
-                    >
-                      {n}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>Difficulty</span>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {DIFFICULTY_OPTIONS.map(({ value, label }) => {
-                  const isSelected = settings.difficulty === value;
-                  return (
-                    <button
-                      key={value}
-                      onClick={() => updateKidSettings(kid.id, { difficulty: value })}
-                      className="tile"
-                      style={{
-                        flex: '1 1 90px',
-                        borderRadius: 14,
-                        padding: '10px 14px',
-                        background: isSelected ? '#FFF0EC' : '#F7F5F0',
-                        border: `2px solid ${isSelected ? palette.swatch : '#DDD8C8'}`,
-                        fontFamily: "'Nunito', sans-serif",
-                        fontWeight: 800,
-                        fontSize: 14,
-                        color: '#3E3B34',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {kid && settings && (
-          <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 14, borderBottom: '1px solid #E5E1D6' }}>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>Rewards</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 16, padding: '14px 18px' }}>
-              <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
-                Stars &amp; daily goal
-              </span>
-              <button
-                onClick={() => updateKidSettings(kid.id, { rewardsEnabled: !settings.rewardsEnabled })}
-                aria-label="Toggle rewards"
-                style={{
-                  width: 52,
-                  height: 30,
-                  borderRadius: 999,
-                  background: settings.rewardsEnabled ? '#3DDC97' : '#D8D3C4',
-                  position: 'relative',
-                  transition: 'background 0.2s',
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    background: '#fff',
-                    position: 'absolute',
-                    top: 3,
-                    left: settings.rewardsEnabled ? 25 : 3,
-                    transition: 'left 0.2s',
-                  }}
-                />
-              </button>
-            </div>
-            {settings.rewardsEnabled && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>Daily star target</span>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {STAR_TARGET_OPTIONS.map((n) => {
-                    const isSelected = settings.dailyStarTarget === n;
-                    return (
-                      <button
-                        key={n}
-                        onClick={() => updateKidSettings(kid.id, { dailyStarTarget: n })}
-                        className="tile"
-                        style={{
-                          flex: '1 1 70px',
-                          borderRadius: 14,
-                          padding: '10px 14px',
-                          background: isSelected ? '#FFF0EC' : '#F7F5F0',
-                          border: `2px solid ${isSelected ? palette.swatch : '#DDD8C8'}`,
-                          fontFamily: "'Nunito', sans-serif",
-                          fontWeight: 800,
-                          fontSize: 14,
-                          color: '#3E3B34',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        <i className="fa-solid fa-star" style={{ fontSize: 12, color: palette.starColor }} />
-                        {n}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
-                  Possible rewards
-                </span>
-                {settings.rewards.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {settings.rewards.map((r, i) => (
                       <div
-                        key={i}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
                           background: '#fff',
-                          borderRadius: 14,
-                          padding: '10px 14px',
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontFamily: "'Nunito', sans-serif",
-                            fontWeight: 700,
-                            fontSize: 14,
-                            color: '#3E3B34',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                          }}
-                        >
-                          <span style={{ fontSize: 18 }}>{r.emoji}</span>
-                          {r.label}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveReward(i)}
-                          aria-label={`Remove ${r.label}`}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            background: '#F7F5F0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <i className="fa-solid fa-xmark" style={{ fontSize: 13, color: '#8C8474' }} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {settings.rewards.length < MAX_REWARDS ? (
-                  <div style={{ background: '#fff', borderRadius: 16, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {REWARD_EMOJI_OPTIONS.map((emoji) => (
-                        <button
-                          key={emoji}
-                          onClick={() => setNewRewardEmoji(emoji)}
-                          className="tile"
-                          style={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: '50%',
-                            fontSize: 17,
-                            background: newRewardEmoji === emoji ? '#FFF0EC' : '#F7F5F0',
-                            border: `2px solid ${newRewardEmoji === emoji ? palette.swatch : 'transparent'}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        value={newRewardLabel}
-                        onChange={(e) => setNewRewardLabel(e.target.value)}
-                        placeholder="Reward name (e.g. Ice cream)"
-                        maxLength={24}
-                        style={{
-                          flex: 1,
-                          background: '#F7F5F0',
-                          borderRadius: 12,
-                          padding: '10px 14px',
-                          fontFamily: "'Nunito', sans-serif",
-                          fontWeight: 700,
-                          fontSize: 13,
-                          color: '#3E3B34',
-                          border: 'none',
-                          outline: 'none',
+                          position: 'absolute',
+                          top: 3,
+                          left: gateEnabled ? 25 : 3,
+                          transition: 'left 0.2s',
                         }}
                       />
-                      <button
-                        onClick={handleAddReward}
-                        disabled={!newRewardLabel.trim()}
-                        className="tile"
-                        style={{
-                          borderRadius: 12,
-                          padding: '10px 18px',
-                          background: newRewardLabel.trim() ? palette.accent : '#D8D3C4',
-                          fontFamily: "'Baloo 2', sans-serif",
-                          fontWeight: 800,
-                          fontSize: 13,
-                          color: '#fff',
-                          flexShrink: 0,
-                        }}
-                      >
-                        Add
-                      </button>
-                    </div>
+                    </button>
                   </div>
-                ) : (
-                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 12, color: '#8C8474' }}>
-                    Max {MAX_REWARDS} rewards — remove one to add another.
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                </div>
 
-        <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: '1px solid #E5E1D6' }}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>Install app</div>
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: 16,
-              padding: '14px 18px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
-            {installed ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <i className="fa-solid fa-circle-check" style={{ color: '#3DDC97' }} />
-                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
-                  Installed — works offline from your home screen.
-                </span>
-              </div>
-            ) : (
-              <>
-                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
-                  Add Explorer Kids to your device for offline play.
-                </span>
-                {showIosSteps || (isIosDevice() && !canInstall) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={sectionLabel}>Install app</div>
                   <div
                     style={{
-                      fontFamily: "'Nunito', sans-serif",
-                      fontWeight: 600,
-                      fontSize: 13,
-                      color: '#8F887A',
-                      lineHeight: 1.45,
+                      background: '#fff',
+                      borderRadius: 16,
+                      padding: '14px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
                     }}
                   >
-                    Tap <i className="fa-solid fa-arrow-up-from-bracket" aria-hidden /> Share in Safari, then choose{' '}
-                    <strong style={{ color: '#5B4A1E' }}>Add to Home Screen</strong>.
+                    {installed ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <i className="fa-solid fa-circle-check" style={{ color: '#3DDC97' }} />
+                        <span style={fieldLabel}>Installed — works offline from your home screen.</span>
+                      </div>
+                    ) : (
+                      <>
+                        <span style={fieldLabel}>Add Explorer Kids to your device for offline play.</span>
+                        {showIosSteps || (isIosDevice() && !canInstall) ? (
+                          <div
+                            style={{
+                              fontFamily: "'Nunito', sans-serif",
+                              fontWeight: 600,
+                              fontSize: 13,
+                              color: '#8F887A',
+                              lineHeight: 1.45,
+                            }}
+                          >
+                            Tap <i className="fa-solid fa-arrow-up-from-bracket" aria-hidden /> Share in Safari, then choose{' '}
+                            <strong style={{ color: '#5B4A1E' }}>Add to Home Screen</strong>.
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void handleInstall()}
+                          disabled={installing || (!canInstall && !isIosDevice())}
+                          className="tile"
+                          style={{
+                            alignSelf: 'flex-start',
+                            padding: '10px 16px',
+                            borderRadius: 999,
+                            background: canInstall || isIosDevice() ? '#FF6F61' : '#D8D3C4',
+                            color: '#fff',
+                            fontFamily: "'Nunito', sans-serif",
+                            fontWeight: 800,
+                            fontSize: 14,
+                            opacity: installing ? 0.7 : 1,
+                          }}
+                        >
+                          <i className="fa-solid fa-download" style={{ marginRight: 8 }} />
+                          {installing ? 'Installing…' : isIosDevice() ? 'How to install' : canInstall ? 'Install' : 'Install unavailable'}
+                        </button>
+                        {!canInstall && !isIosDevice() && !installed ? (
+                          <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 12, color: '#8F887A' }}>
+                            Open this site in Chrome or Edge on a phone/desktop to install. Or use the browser’s Install / Add to Home Screen menu.
+                          </span>
+                        ) : null}
+                      </>
+                    )}
                   </div>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => void handleInstall()}
-                  disabled={installing || (!canInstall && !isIosDevice())}
-                  className="tile"
-                  style={{
-                    alignSelf: 'flex-start',
-                    padding: '10px 16px',
-                    borderRadius: 999,
-                    background: canInstall || isIosDevice() ? '#FF6F61' : '#D8D3C4',
-                    color: '#fff',
-                    fontFamily: "'Nunito', sans-serif",
-                    fontWeight: 800,
-                    fontSize: 14,
-                    opacity: installing ? 0.7 : 1,
-                  }}
-                >
-                  <i className="fa-solid fa-download" style={{ marginRight: 8 }} />
-                  {installing ? 'Installing…' : isIosDevice() ? 'How to install' : canInstall ? 'Install' : 'Install unavailable'}
-                </button>
-                {!canInstall && !isIosDevice() && !installed ? (
-                  <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: 12, color: '#8F887A' }}>
-                    Open this site in Chrome or Edge on a phone/desktop to install. Or use the browser’s Install / Add to Home Screen menu.
-                  </span>
-                ) : null}
+                </div>
               </>
             )}
           </div>
         </div>
-
-        <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: kid ? '1px solid #E5E1D6' : undefined }}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>Grown-up gate</div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 16, padding: '14px 18px' }}>
-            <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 13, color: '#5B4A1E' }}>
-              Require a math question to enter Settings
-            </span>
-            <button
-              onClick={() => setGateEnabled(!gateEnabled)}
-              aria-label="Toggle grown-up gate"
-              style={{
-                width: 52,
-                height: 30,
-                borderRadius: 999,
-                background: gateEnabled ? '#3DDC97' : '#D8D3C4',
-                position: 'relative',
-                transition: 'background 0.2s',
-                flexShrink: 0,
-              }}
-            >
-              <div
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: '#fff',
-                  position: 'absolute',
-                  top: 3,
-                  left: gateEnabled ? 25 : 3,
-                  transition: 'left 0.2s',
-                }}
-              />
-            </button>
-          </div>
-        </div>
-
-        {kid && (
-          <div style={{ padding: '20px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 15, color: '#2E2B26' }}>Reset</div>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button
-                onClick={handleResetToday}
-                className="tile"
-                style={{
-                  flex: '1 1 160px',
-                  padding: '12px 18px',
-                  borderRadius: 14,
-                  background: '#fff',
-                  border: '2px solid #DDD8C8',
-                  fontFamily: "'Nunito', sans-serif",
-                  fontWeight: 800,
-                  fontSize: 13,
-                  color: '#5B4A1E',
-                }}
-              >
-                <i className="fa-solid fa-arrow-rotate-left" style={{ marginRight: 8 }} />
-                Reset today
-              </button>
-              <button
-                onClick={handleResetAll}
-                className="tile"
-                style={{
-                  flex: '1 1 160px',
-                  padding: '12px 18px',
-                  borderRadius: 14,
-                  background: '#FFF0EC',
-                  border: '2px solid #FF6F61',
-                  fontFamily: "'Nunito', sans-serif",
-                  fontWeight: 800,
-                  fontSize: 13,
-                  color: '#FF6F61',
-                }}
-              >
-                <i className="fa-solid fa-trash" style={{ marginRight: 8 }} />
-                Reset all progress
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

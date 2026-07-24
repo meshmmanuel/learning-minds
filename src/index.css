@@ -49,6 +49,23 @@ img {
   opacity: 0.85;
 }
 
+@media (max-width: 720px) {
+  .dashboardRail {
+    flex-direction: column !important;
+  }
+  .dashboardNav {
+    width: 100% !important;
+  }
+  .dashboardNavList {
+    flex-direction: row !important;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .dashboardNavDivider {
+    display: none;
+  }
+}
+
 .bgShape {
   position: absolute;
   pointer-events: none;
