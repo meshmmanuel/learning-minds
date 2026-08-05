@@ -6,6 +6,14 @@ export function todayStr(): string {
   return `${y}-${m}-${day}`;
 }
 
+const WEEKDAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+export type WeekdayId = (typeof WEEKDAY_IDS)[number];
+
+export function todayWeekday(): WeekdayId {
+  return WEEKDAY_IDS[new Date().getDay()];
+}
+
 export function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;
   const [y, m, d] = dateStr.split('-').map(Number);

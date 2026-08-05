@@ -2,33 +2,35 @@ import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
-import { findSubject, subjects, visibleTopics } from '../data/subjects';
-import { subjectTodayPercent, topicTodayPercent } from '../utils/progress';
+import { findSubject, findTopic, subjects, topicBackPath } from '../data/subjects';
+import { activityKey, topicTodayPercent } from '../utils/progress';
 import { freePlayAllowed } from '../utils/plan';
 import { playTap } from '../utils/sound';
 
-export default function SubjectTopics() {
-  const { subjectId } = useParams();
+export default function TopicActivities() {
+  const { subjectId, topicId } = useParams();
   const { theme, activeKidId, getTodayRecord, getKidSettings } = useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
 
   const subjectIndex = subjects.findIndex((s) => s.id === subjectId);
   const subject = findSubject(subjectId);
-  const topics = subject ? visibleTopics(subject) : [];
+  const topic = findTopic(subject, topicId);
   const color = palette.tileColors[subjectIndex % palette.tileColors.length];
   const todayRecord = activeKidId ? getTodayRecord(activeKidId) : null;
-  const pct = subjectId && todayRecord ? subjectTodayPercent(subjectId, todayRecord) : 0;
+  const pct = subjectId && topicId && todayRecord ? topicTodayPercent(subjectId, topicId, todayRecord) : 0;
 
-  // Plan-only mode: browsing subjects is free play, so it's off limits.
+  // Plan-only mode: the kid is sent straight to a planned activity, never here.
   const canFreePlay =
     activeKidId && todayRecord ? freePlayAllowed(getKidSettings(activeKidId), todayRecord) : true;
 
   useEffect(() => {
-    if (!subject || topics.length === 0 || !canFreePlay) navigate('/home', { replace: true });
-  }, [subject, topics.length, canFreePlay, navigate]);
+    if (!subject || !topic || topic.activities.length === 0 || !canFreePlay) {
+      navigate('/home', { replace: true });
+    }
+  }, [subject, topic, canFreePlay, navigate]);
 
-  if (!subject || topics.length === 0 || !canFreePlay) return null;
+  if (!subject || !topic || topic.activities.length === 0 || !canFreePlay) return null;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -36,10 +38,10 @@ export default function SubjectTopics() {
         <button
           onClick={() => {
             playTap();
-            navigate('/home');
+            navigate(topicBackPath(subject));
           }}
           className="navBtn"
-          aria-label="Home"
+          aria-label="Back"
           style={{
             width: 56,
             height: 56,
@@ -52,7 +54,7 @@ export default function SubjectTopics() {
             flexShrink: 0,
           }}
         >
-          <i className="fa-solid fa-house" style={{ fontSize: 22, color: palette.accent }} />
+          <i className="fa-solid fa-arrow-left" style={{ fontSize: 20, color: palette.accent }} />
         </button>
         <div
           style={{
@@ -66,10 +68,10 @@ export default function SubjectTopics() {
             flexShrink: 0,
           }}
         >
-          <i className={subject.icon} style={{ fontSize: 20, color: '#fff' }} />
+          <i className={topic.icon} style={{ fontSize: 20, color: '#fff' }} />
         </div>
         <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 24, color: palette.textDark }}>
-          {subject.label}
+          {topic.label}
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 120, height: 10, background: palette.chipBg, borderRadius: 999, overflow: 'hidden' }}>
@@ -89,14 +91,14 @@ export default function SubjectTopics() {
           alignContent: 'start',
         }}
       >
-        {topics.map((t) => {
-          const topicPct = todayRecord ? topicTodayPercent(subject.id, t.id, todayRecord) : 0;
+        {topic.activities.map((a) => {
+          const done = todayRecord?.topics[activityKey(subject.id, topic.id, a.id)]?.completed;
           return (
             <button
-              key={t.id}
+              key={a.id}
               onClick={() => {
                 playTap();
-                navigate(`/subject/${subject.id}/topic/${t.id}`);
+                navigate(`/subject/${subject.id}/topic/${topic.id}/activity/${a.id}`);
               }}
               className="tile"
               style={{
@@ -124,15 +126,27 @@ export default function SubjectTopics() {
                   justifyContent: 'center',
                 }}
               >
-                <i className={t.icon} style={{ fontSize: 21, color: '#fff' }} />
+                <i className={a.icon} style={{ fontSize: 21, color: '#fff' }} />
               </div>
-              <div>
-                <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 17, color: '#fff' }}>{t.label}</div>
-                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
-                  {t.activities.length} {t.activities.length === 1 ? 'activity' : 'activities'}
-                  {topicPct > 0 && ` · ${topicPct}%`}
+              <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 17, color: '#fff' }}>{a.label}</div>
+              {done && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.9)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <i className="fa-solid fa-check" style={{ fontSize: 12, color: color }} />
                 </div>
-              </div>
+              )}
             </button>
           );
         })}

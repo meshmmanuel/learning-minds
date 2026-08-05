@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { avatarOptions } from '../data/subjects';
@@ -10,7 +10,10 @@ export default function CreateProfile() {
   const { theme, addKid, kids } = useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
+  const location = useLocation();
   const canCancel = kids.length > 0;
+  // Set when a parent adds a child from the dashboard, so they land back there.
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? null;
 
   const [selected, setSelected] = useState(0);
   const [name, setName] = useState('');
@@ -25,7 +28,7 @@ export default function CreateProfile() {
       avatarIcon: avatarOptions[selected].icon,
       avatarColor: avatarOptions[selected].color,
     });
-    navigate('/home', { replace: true });
+    navigate(returnTo ?? '/home', { replace: true });
   };
 
   return (
@@ -61,7 +64,7 @@ export default function CreateProfile() {
           <button
             onClick={() => {
               playTap();
-              navigate('/who');
+              navigate(returnTo ?? '/who');
             }}
             aria-label="Cancel"
             title="Cancel"

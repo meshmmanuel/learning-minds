@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
-import { subjects, topicsBySubject } from '../data/subjects';
+import { findActivity, findSubject, findTopic } from '../data/subjects';
 import { fireConfetti } from '../utils/confetti';
 import { playSound } from '../utils/sound';
 import { genMathQuestion, getNumberLineWindow, buildAnswerChoices, type MathQuestion } from '../utils/mathQuestions';
 import NumberLine from '../components/NumberLine';
+import { activityAllowed } from '../utils/plan';
 
 const PRAISE = ['Great job!', 'Awesome!', 'You did it!', 'Super work!', 'Nicely done!'];
 const TRY_AGAIN = ['Nice try!', "Let's keep going!", 'Almost!', 'Good effort!'];
@@ -28,65 +29,98 @@ function speak(text: string) {
 type Phase = 'question' | 'feedback' | 'finished';
 
 export default function TopicActivity() {
-  const { subjectId, topicId } = useParams();
-  const { theme, kids, activeKidId, getKidSettings, recordTopicProgress, completeTopicSession } =
+  const { subjectId, topicId, activityId } = useParams();
+  const [searchParams] = useSearchParams();
+  const { theme, kids, activeKidId, getKidSettings, getTodayRecord, recordTopicProgress, completeTopicSession } =
     useApp();
   const palette = themes[theme];
   const navigate = useNavigate();
 
   const kid = kids.find((k) => k.id === activeKidId);
-  const subjectIndex = subjects.findIndex((s) => s.id === subjectId);
-  const subject = subjects[subjectIndex];
-  const topic = subjectId ? topicsBySubject[subjectId]?.find((t) => t.id === topicId) : undefined;
-  const color = palette.tileColors[subjectIndex % palette.tileColors.length];
+  const subject = findSubject(subjectId);
+  const topic = findTopic(subject, topicId);
+  const activity = findActivity(topic, activityId);
 
   const settings = kid ? getKidSettings(kid.id) : null;
   const totalQuestions = settings?.questionsPerTopic ?? 10;
   const difficulty = settings?.difficulty ?? 'normal';
-  const isNumberLineTopic = subject?.id === 'math' && (topic?.id === 'addition' || topic?.id === 'subtraction');
-  const mathType: 'add' | 'sub' = topic?.id === 'subtraction' ? 'sub' : 'add';
+  const showNumberLine = activity?.numberLine ?? false;
+  const mathType: 'add' | 'sub' = activity?.op ?? 'add';
+  const activityMax = activity?.max ?? 10;
+
+  // Scheduled sessions run for their slot; free play runs a question count.
+  const scheduledMins = Number(searchParams.get('mins')) || 0;
+  const isTimed = scheduledMins > 0;
+  const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [correctIndex, setCorrectIndex] = useState(() => Math.floor(Math.random() * 3));
-  const [mathQ, setMathQ] = useState<MathQuestion>(() => genMathQuestion(mathType, difficulty));
+  const [mathQ, setMathQ] = useState<MathQuestion>(() => genMathQuestion(mathType, activityMax, difficulty));
   const [answerChoices, setAnswerChoices] = useState<number[]>(() => buildAnswerChoices(mathQ.ans));
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [attemptsOnCurrent, setAttemptsOnCurrent] = useState(0);
-  const [strikes, setStrikes] = useState(0);
   const [phase, setPhase] = useState<Phase>('question');
   const [finishResult, setFinishResult] = useState<{ starsEarnedThisRun: number } | null>(null);
 
-  const numberLineWindow = useMemo(() => getNumberLineWindow(mathQ, difficulty), [mathQ, difficulty]);
+  const numberLineWindow = useMemo(
+    () => getNumberLineWindow(mathQ, activityMax, difficulty),
+    [mathQ, activityMax, difficulty],
+  );
+
+  // Plan-only mode still lets planned activities through — only off-plan ones bounce.
+  const allowed =
+    kid && settings ? activityAllowed(settings, getTodayRecord(kid.id), subjectId, topicId, activityId) : true;
 
   useEffect(() => {
-    if (!kid || !subject || !topic || subject.locked || topic.locked) navigate('/home', { replace: true });
-  }, [kid, subject, topic, navigate]);
+    if (!kid || !subject || !topic || !activity || !allowed) navigate('/home', { replace: true });
+  }, [kid, subject, topic, activity, allowed, navigate]);
+
+  // Drives the slot progress bar. The session only ends between questions.
+  useEffect(() => {
+    if (!isTimed) return;
+    const id = setInterval(() => setElapsedMs(Date.now() - startedAt), 1000);
+    return () => clearInterval(id);
+  }, [isTimed, startedAt]);
 
   const nextMathQuestion = () => {
-    const q = genMathQuestion(mathType, difficulty);
+    const q = genMathQuestion(mathType, activityMax, difficulty);
     setMathQ(q);
     setAnswerChoices(buildAnswerChoices(q.ans));
     setSelectedAnswer(null);
   };
 
+  /** A run ends when the slot is up, or at the question count when untimed. */
+  const runIsOver = (answered: number) =>
+    isTimed ? Date.now() - startedAt >= scheduledMins * 60_000 : answered >= totalQuestions;
+
   const resetRun = () => {
     setQuestionIndex(0);
-    setCorrectIndex(Math.floor(Math.random() * 3));
+    setStartedAt(Date.now());
+    setElapsedMs(0);
     nextMathQuestion();
     setAnsweredCount(0);
     setCorrectCount(0);
     setAttemptsOnCurrent(0);
-    setStrikes(0);
     setPhase('question');
     setFinishResult(null);
   };
 
-  if (!kid || !subject || !topic || !settings || subject.locked || topic.locked) return null;
+  if (!kid || !subject || !topic || !activity || !settings || !allowed) return null;
 
   const finishSession = (correct: number, answered: number, passed: boolean) => {
-    const result = completeTopicSession(kid.id, subject.id, topic.id, correct, answered, totalQuestions, passed);
+    const result = completeTopicSession({
+      kidId: kid.id,
+      subjectId: subject.id,
+      topicId: topic.id,
+      activityId: activity.id,
+      correct,
+      answered,
+      planned: totalQuestions,
+      passed,
+      secondsSpent: (Date.now() - startedAt) / 1000,
+    });
     playSound(FINISH_SOUND);
     if (result.rewardReady) {
       navigate('/home');
@@ -99,7 +133,6 @@ export default function TopicActivity() {
 
   const advanceQuestion = () => {
     setQuestionIndex((i) => i + 1);
-    setCorrectIndex(Math.floor(Math.random() * 3));
     nextMathQuestion();
     setAttemptsOnCurrent(0);
     setPhase('question');
@@ -117,10 +150,10 @@ export default function TopicActivity() {
       const nextCorrect = correctCount + 1;
       setAnsweredCount(nextAnswered);
       setCorrectCount(nextCorrect);
-      recordTopicProgress(kid.id, subject.id, topic.id, nextAnswered, nextCorrect);
+      recordTopicProgress(kid.id, subject.id, topic.id, activity.id, nextAnswered, nextCorrect);
 
       setTimeout(() => {
-        if (nextAnswered >= totalQuestions) {
+        if (runIsOver(nextAnswered)) {
           finishSession(nextCorrect, nextAnswered, true);
         } else {
           advanceQuestion();
@@ -139,27 +172,20 @@ export default function TopicActivity() {
       return;
     }
 
-    // Second miss on this question — counts as a strike.
-    const nextStrikes = strikes + 1;
+    // Second miss — move on to the next question. Getting things wrong is the
+    // reason the child is here, so it never cuts the session short: only the
+    // clock (timed) or the question count (free play) ends a run.
     const nextAnswered = answeredCount + 1;
-    setStrikes(nextStrikes);
     setAnsweredCount(nextAnswered);
-    recordTopicProgress(kid.id, subject.id, topic.id, nextAnswered, correctCount);
+    recordTopicProgress(kid.id, subject.id, topic.id, activity.id, nextAnswered, correctCount);
 
     setTimeout(() => {
-      if (nextStrikes >= 2) {
-        finishSession(correctCount, nextAnswered, false);
-      } else if (nextAnswered >= totalQuestions) {
+      if (runIsOver(nextAnswered)) {
         finishSession(correctCount, nextAnswered, true);
       } else {
         advanceQuestion();
       }
     }, FEEDBACK_DELAY);
-  };
-
-  const handleTap = (idx: number) => {
-    if (phase !== 'question') return;
-    commitAnswer(idx === correctIndex);
   };
 
   const handleSubmitMathAnswer = () => {
@@ -186,7 +212,7 @@ export default function TopicActivity() {
           You finished! <i className="fa-solid fa-champagne-glasses" />
         </div>
         <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 18, color: palette.textDark }}>
-          Great work on {topic.label}!
+          Great work on {activity.label}!
         </div>
 
         {settings.rewardsEnabled && (
@@ -227,7 +253,7 @@ export default function TopicActivity() {
             Play again
           </button>
           <button
-            onClick={() => navigate(`/subject/${subject.id}`)}
+            onClick={() => navigate(`/subject/${subject.id}/topic/${topic.id}`)}
             className="tile"
             style={{
               background: '#fff',
@@ -240,7 +266,7 @@ export default function TopicActivity() {
               boxShadow: '0 6px 14px rgba(0,0,0,0.1)',
             }}
           >
-            Back to topics
+            Back to {topic.label}
           </button>
         </div>
       </div>
@@ -260,7 +286,7 @@ export default function TopicActivity() {
       }}
     >
       <button
-        onClick={() => navigate(`/subject/${subject.id}`)}
+        onClick={() => navigate(`/subject/${subject.id}/topic/${topic.id}`)}
         className="navBtn"
         aria-label="Back"
         style={{
@@ -280,29 +306,58 @@ export default function TopicActivity() {
         <i className="fa-solid fa-arrow-left" style={{ fontSize: 20, color: palette.accent }} />
       </button>
 
-      <div
-        style={{
-          fontFamily: "'Nunito', sans-serif",
-          fontWeight: 800,
-          fontSize: 15,
-          color: palette.textMuted,
-          background: palette.chipBg,
-          padding: '6px 16px',
-          borderRadius: 999,
-        }}
-      >
-        Question {Math.min(questionIndex + 1, totalQuestions)} of {totalQuestions}
-      </div>
+      {isTimed ? (
+        // No countdown — a ticking clock is pressure at this age. Just a bar.
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              fontFamily: "'Nunito', sans-serif",
+              fontWeight: 800,
+              fontSize: 15,
+              color: palette.textMuted,
+              background: palette.chipBg,
+              padding: '6px 16px',
+              borderRadius: 999,
+            }}
+          >
+            Question {questionIndex + 1}
+          </div>
+          <div style={{ width: 180, height: 8, background: palette.chipBg, borderRadius: 999, overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${Math.min(100, (elapsedMs / (scheduledMins * 60_000)) * 100)}%`,
+                height: '100%',
+                background: palette.accent,
+                borderRadius: 999,
+                transition: 'width 1s linear',
+              }}
+            />
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            fontFamily: "'Nunito', sans-serif",
+            fontWeight: 800,
+            fontSize: 15,
+            color: palette.textMuted,
+            background: palette.chipBg,
+            padding: '6px 16px',
+            borderRadius: 999,
+          }}
+        >
+          Question {Math.min(questionIndex + 1, totalQuestions)} of {totalQuestions}
+        </div>
+      )}
 
       <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 800, fontSize: 'clamp(22px, 5vw, 32px)', color: palette.textDark, textAlign: 'center' }}>
-        Let's practice {topic.label}!
+        Let's practice {activity.label}!
       </div>
       <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: 16, color: palette.textMuted, textAlign: 'center' }}>
-        {isNumberLineTopic ? 'Use − and + to count, then pick your answer!' : 'Tap the card to answer!'}
+        {showNumberLine ? 'Use − and + to count, then pick your answer!' : 'Pick your answer!'}
       </div>
 
-      {isNumberLineTopic ? (
-        <>
+      <>
           <div
             style={{
               display: 'flex',
@@ -321,20 +376,22 @@ export default function TopicActivity() {
             <span style={{ color: palette.textMuted }}>?</span>
           </div>
 
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 480,
-              background: '#fff',
-              borderRadius: 20,
-              padding: '18px 14px',
-              boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-              display: 'flex',
-              justifyContent: 'center',
-            }}
-          >
-            <NumberLine key={`${topic.id}-${questionIndex}`} win={numberLineWindow} disabled={phase !== 'question'} />
-          </div>
+          {showNumberLine && (
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 480,
+                background: '#fff',
+                borderRadius: 20,
+                padding: '18px 14px',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              <NumberLine key={`${activity.id}-${questionIndex}`} win={numberLineWindow} disabled={phase !== 'question'} />
+            </div>
+          )}
 
           <div
             style={{
@@ -391,37 +448,7 @@ export default function TopicActivity() {
           >
             That's my answer! <i className="fa-solid fa-check" />
           </button>
-        </>
-      ) : (
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {[0, 1, 2].map((i) => {
-            const isHint = settings.difficulty === 'easy' && phase === 'question' && i === correctIndex;
-            return (
-              <button
-                key={i}
-                onClick={() => handleTap(i)}
-                className="tile"
-                style={{
-                  width: 130,
-                  height: 130,
-                  borderRadius: 28,
-                  background: color,
-                  opacity: 1 - i * 0.12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '5px solid #fff',
-                  boxShadow: isHint ? `0 0 0 6px ${palette.starColor}88, 0 10px 24px rgba(0,0,0,0.18)` : '0 10px 24px rgba(0,0,0,0.18)',
-                  animation: isHint ? 'pulseSoft 1.1s ease-in-out infinite' : phase === 'feedback' ? 'popIn 0.4s ease-out' : undefined,
-                }}
-              >
-                <i className={topic.icon} style={{ fontSize: 48, color: '#fff' }} />
-              </button>
-            );
-          })}
-        </div>
-      )}
-
+      </>
     </div>
   );
 }
