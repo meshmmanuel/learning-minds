@@ -6,6 +6,7 @@ import CreateProfile from './screens/CreateProfile';
 import WhoIsPlaying from './screens/WhoIsPlaying';
 import HomeHub from './screens/HomeHub';
 import SubjectTopics from './screens/SubjectTopics';
+import TopicActivities from './screens/TopicActivities';
 import TopicActivity from './screens/TopicActivity';
 import ParentDashboard from './screens/ParentDashboard';
 
@@ -40,7 +41,8 @@ export default function App() {
         <Route path="/who" element={<WhoIsPlaying />} />
         <Route path="/home" element={<HomeHub />} />
         <Route path="/subject/:subjectId" element={<SubjectTopics />} />
-        <Route path="/subject/:subjectId/topic/:topicId" element={<TopicActivity />} />
+        <Route path="/subject/:subjectId/topic/:topicId" element={<TopicActivities />} />
+        <Route path="/subject/:subjectId/topic/:topicId/activity/:activityId" element={<TopicActivity />} />
         <Route path="/dashboard" element={<ParentDashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

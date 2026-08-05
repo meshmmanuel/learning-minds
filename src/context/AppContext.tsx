@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { DailyRecord, Kid, KidSettings, ThemeName, TopicSessionRecord } from '../types';
 import { todayStr } from '../utils/date';
 import { computeStars } from '../utils/rewards';
+import { activityKey } from '../utils/progress';
+import { setSoundPreferences } from '../utils/sound';
 
 const DEFAULT_SETTINGS: KidSettings = {
   questionsPerTopic: 10,
@@ -9,10 +11,13 @@ const DEFAULT_SETTINGS: KidSettings = {
   rewardsEnabled: true,
   dailyStarTarget: 10,
   rewards: [],
+  plan: {},
+  planOnly: false,
+  freePlayAfterPlan: true,
 };
 
 function emptyDailyRecord(): DailyRecord {
-  return { date: todayStr(), topics: {}, starsToday: 0, rewardPending: false };
+  return { date: todayStr(), topics: {}, starsToday: 0, rewardPending: false, offlineDone: [] };
 }
 
 interface PersistedState {
@@ -20,6 +25,9 @@ interface PersistedState {
   activeKidId: string | null;
   theme: ThemeName;
   gateEnabled: boolean;
+  /** Device-wide, not per kid — the tablet is shared. */
+  tapSoundsEnabled: boolean;
+  gameSoundsEnabled: boolean;
   kidSettings: Record<string, KidSettings>;
   dailyRecords: Record<string, DailyRecord>;
   lastPlayDate: Record<string, string>;
@@ -32,22 +40,37 @@ interface CompleteResult {
 
 interface AppState extends PersistedState {
   addKid: (kid: Omit<Kid, 'id'>) => Kid;
+  updateKid: (kidId: string, partial: Partial<Omit<Kid, 'id'>>) => void;
+  removeKid: (kidId: string) => void;
   setActiveKid: (id: string) => void;
   setTheme: (t: ThemeName) => void;
   setGateEnabled: (v: boolean) => void;
+  setTapSoundsEnabled: (v: boolean) => void;
+  setGameSoundsEnabled: (v: boolean) => void;
+  /** Wipes every profile, setting and record on this device. */
+  resetApp: () => void;
   getKidSettings: (kidId: string) => KidSettings;
   updateKidSettings: (kidId: string, partial: Partial<KidSettings>) => void;
   getTodayRecord: (kidId: string) => DailyRecord;
-  recordTopicProgress: (kidId: string, subjectId: string, topicId: string, answered: number, correct: number) => void;
+  recordTopicProgress: (
+    kidId: string,
+    subjectId: string,
+    topicId: string,
+    activityId: string,
+    answered: number,
+    correct: number,
+  ) => void;
   completeTopicSession: (
     kidId: string,
     subjectId: string,
     topicId: string,
+    activityId: string,
     correct: number,
     answered: number,
     planned: number,
     passed: boolean,
   ) => CompleteResult;
+  toggleOfflinePlanItem: (kidId: string, itemId: string) => void;
   claimReward: (kidId: string) => void;
   resetTodayForKid: (kidId: string) => void;
   resetAllProgressForKid: (kidId: string) => void;
@@ -67,9 +90,6 @@ function loadState(): Partial<PersistedState> {
   return {};
 }
 
-function topicKey(subjectId: string, topicId: string) {
-  return `${subjectId}:${topicId}`;
-}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const initial = loadState();
@@ -77,6 +97,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeKidId, setActiveKidId] = useState<string | null>(initial.activeKidId ?? null);
   const [theme, setThemeState] = useState<ThemeName>(initial.theme ?? 'playful');
   const [gateEnabled, setGateEnabledState] = useState<boolean>(initial.gateEnabled ?? true);
+  const [tapSoundsEnabled, setTapSoundsEnabledState] = useState<boolean>(initial.tapSoundsEnabled ?? true);
+  const [gameSoundsEnabled, setGameSoundsEnabledState] = useState<boolean>(initial.gameSoundsEnabled ?? true);
   const [kidSettings, setKidSettings] = useState<Record<string, KidSettings>>(initial.kidSettings ?? {});
   const [dailyRecords, setDailyRecords] = useState<Record<string, DailyRecord>>(initial.dailyRecords ?? {});
   const [lastPlayDate, setLastPlayDate] = useState<Record<string, string>>(initial.lastPlayDate ?? {});
@@ -87,12 +109,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeKidId,
       theme,
       gateEnabled,
+      tapSoundsEnabled,
+      gameSoundsEnabled,
       kidSettings,
       dailyRecords,
       lastPlayDate,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-  }, [kids, activeKidId, theme, gateEnabled, kidSettings, dailyRecords, lastPlayDate]);
+  }, [kids, activeKidId, theme, gateEnabled, tapSoundsEnabled, gameSoundsEnabled, kidSettings, dailyRecords, lastPlayDate]);
+
+  // The audio module can't read context, so push preferences down to it.
+  useEffect(() => {
+    setSoundPreferences({ tap: tapSoundsEnabled, game: gameSoundsEnabled });
+  }, [tapSoundsEnabled, gameSoundsEnabled]);
 
   const addKid: AppState['addKid'] = (kid) => {
     const newKid: Kid = { ...kid, id: crypto.randomUUID() };
@@ -102,9 +131,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return newKid;
   };
 
+  const updateKid: AppState['updateKid'] = (kidId, partial) => {
+    setKids((prev) => prev.map((k) => (k.id === kidId ? { ...k, ...partial } : k)));
+  };
+
+  /** Removes the profile and everything keyed to it, then re-points the active kid. */
+  const removeKid: AppState['removeKid'] = (kidId) => {
+    setKids((prev) => {
+      const next = prev.filter((k) => k.id !== kidId);
+      setActiveKidId((current) => (current === kidId ? (next[0]?.id ?? null) : current));
+      return next;
+    });
+    setKidSettings((prev) => {
+      const next = { ...prev };
+      delete next[kidId];
+      return next;
+    });
+    setDailyRecords((prev) => {
+      const next = { ...prev };
+      delete next[kidId];
+      return next;
+    });
+    setLastPlayDate((prev) => {
+      const next = { ...prev };
+      delete next[kidId];
+      return next;
+    });
+  };
+
   const setActiveKid = (id: string) => setActiveKidId(id);
   const setTheme = (t: ThemeName) => setThemeState(t);
   const setGateEnabled = (v: boolean) => setGateEnabledState(v);
+  const setTapSoundsEnabled = (v: boolean) => setTapSoundsEnabledState(v);
+  const setGameSoundsEnabled = (v: boolean) => setGameSoundsEnabledState(v);
+
+  /** Back to a first-run app: no profiles, no settings, no history. */
+  const resetApp: AppState['resetApp'] = () => {
+    setKids([]);
+    setActiveKidId(null);
+    setKidSettings({});
+    setDailyRecords({});
+    setLastPlayDate({});
+    setThemeState('playful');
+    setGateEnabledState(true);
+    setTapSoundsEnabledState(true);
+    setGameSoundsEnabledState(true);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* storage unavailable — in-memory reset above still applies */
+    }
+  };
 
   const getKidSettings: AppState['getKidSettings'] = (kidId) => {
     const stored = kidSettings[kidId];
@@ -137,9 +214,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  const recordTopicProgress: AppState['recordTopicProgress'] = (kidId, subjectId, topicId, answered, correct) => {
+  const recordTopicProgress: AppState['recordTopicProgress'] = (
+    kidId,
+    subjectId,
+    topicId,
+    activityId,
+    answered,
+    correct,
+  ) => {
     const settings = getKidSettings(kidId);
-    const key = topicKey(subjectId, topicId);
+    const key = activityKey(subjectId, topicId, activityId);
     withTodayRecord(kidId, (record) => {
       const existing = record.topics[key];
       const entry: TopicSessionRecord = existing
@@ -147,6 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         : {
             subjectId,
             topicId,
+            activityId,
             questionsPlanned: settings.questionsPerTopic,
             answered,
             correct,
@@ -161,9 +246,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLastPlayDate((prev) => ({ ...prev, [kidId]: todayStr() }));
   };
 
-  const completeTopicSession: AppState['completeTopicSession'] = (kidId, subjectId, topicId, correct, answered, planned, passed) => {
+  const completeTopicSession: AppState['completeTopicSession'] = (
+    kidId,
+    subjectId,
+    topicId,
+    activityId,
+    correct,
+    answered,
+    planned,
+    passed,
+  ) => {
     const settings = getKidSettings(kidId);
-    const key = topicKey(subjectId, topicId);
+    const key = activityKey(subjectId, topicId, activityId);
     const stored = dailyRecords[kidId];
     const record = stored && stored.date === todayStr() ? { ...emptyDailyRecord(), ...stored } : emptyDailyRecord();
 
@@ -188,6 +282,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const entry: TopicSessionRecord = {
       subjectId,
       topicId,
+      activityId,
       questionsPlanned: planned,
       answered,
       correct,
@@ -210,6 +305,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLastPlayDate((prev) => ({ ...prev, [kidId]: todayStr() }));
 
     return { starsEarnedThisRun, rewardReady: crossed };
+  };
+
+  const toggleOfflinePlanItem: AppState['toggleOfflinePlanItem'] = (kidId, itemId) => {
+    withTodayRecord(kidId, (record) => {
+      const done = record.offlineDone.includes(itemId)
+        ? record.offlineDone.filter((id) => id !== itemId)
+        : [...record.offlineDone, itemId];
+      return { ...record, offlineDone: done };
+    });
   };
 
   const claimReward: AppState['claimReward'] = (kidId) => {
@@ -241,18 +345,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activeKidId,
         theme,
         gateEnabled,
+        tapSoundsEnabled,
+        gameSoundsEnabled,
         kidSettings,
         dailyRecords,
         lastPlayDate,
         addKid,
+        updateKid,
+        removeKid,
         setActiveKid,
         setTheme,
         setGateEnabled,
+        setTapSoundsEnabled,
+        setGameSoundsEnabled,
+        resetApp,
         getKidSettings,
         updateKidSettings,
         getTodayRecord,
         recordTopicProgress,
         completeTopicSession,
+        toggleOfflinePlanItem,
         claimReward,
         resetTodayForKid,
         resetAllProgressForKid,
