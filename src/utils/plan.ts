@@ -1,4 +1,4 @@
-import type { DailyRecord, KidSettings, PlanItem } from '../types';
+import type { DailyRecord, KidSettings, PlanItem, TopicSessionRecord } from '../types';
 import { findActivity, findSubject, findTopic } from '../data/subjects';
 import { todayWeekday } from './date';
 import { activityKey } from './progress';
@@ -154,6 +154,20 @@ export function currentPlanItemId(items: PlanItem[], record: DailyRecord): strin
     return start !== null && start <= now;
   });
   return (started.length > 0 ? started[started.length - 1] : pending[0]).id;
+}
+
+/**
+ * What the child actually did against this row today, if anything. Undefined
+ * for offline items and for app items never opened.
+ */
+export function planItemRecord(item: PlanItem, record: DailyRecord): TopicSessionRecord | undefined {
+  if (item.kind !== 'app' || !item.subjectId || !item.topicId || !item.activityId) return undefined;
+  return record.topics[activityKey(item.subjectId, item.topicId, item.activityId)];
+}
+
+/** Rounds up, so a few seconds of work never reports as "0 min". */
+export function formatMinutesSpent(seconds: number): string {
+  return `${Math.max(1, Math.ceil(seconds / 60))} min`;
 }
 
 /** An app item completes itself; an offline item is ticked by hand. */

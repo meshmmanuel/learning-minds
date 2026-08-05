@@ -102,7 +102,11 @@ export interface TopicSessionRecord {
   completed: boolean;
   gradePercent: number | null;
   starsEarned: number;
-  starsAwarded: boolean;
+  /**
+   * Time actually spent on this activity today, summed across repeats. The
+   * timetable schedules minutes, so minutes are what the parent needs back.
+   */
+  secondsSpent: number;
   completedAt: string | null;
 }
 
@@ -114,3 +118,6 @@ export interface DailyRecord {
   /** PlanItem ids for offline tasks ticked off today. */
   offlineDone: string[];
 }
+
+/** Every day we still hold for a kid, keyed by `YYYY-MM-DD`. */
+export type DailyHistory = Record<string, DailyRecord>;

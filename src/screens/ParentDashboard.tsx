@@ -4,17 +4,20 @@ import { useApp } from '../context/AppContext';
 import { themes } from '../theme';
 import { avatarOptions, findActivity, findSubject, findTopic, visibleSubjects } from '../data/subjects';
 import type { Difficulty, KidSettings, PlanItem, QuestionsPerTopic, ThemeName, WeekPlan } from '../types';
-import { daysSince } from '../utils/date';
+import { daysSince, todayWeekday } from '../utils/date';
 import {
   DURATION_OPTIONS,
   WEEKDAYS,
   formatGap,
+  formatMinutesSpent,
   formatSlot,
   formatTime,
   gapBefore,
+  isPlanItemDone,
   overlappingIds,
   planItemIcon,
   planItemLabel,
+  planItemRecord,
   sortPlanItems,
 } from '../utils/plan';
 import PlanAddSheet from '../components/PlanAddSheet';
@@ -232,6 +235,8 @@ export default function ParentDashboard() {
 
   const dayItems: PlanItem[] = sortPlanItems(draft?.settings.plan?.[planDay as keyof WeekPlan] ?? []);
   const dayClashes = overlappingIds(dayItems);
+  /** Other weekdays have nothing to report yet — only today has a record. */
+  const showsProgress = planDay === todayWeekday();
 
   const setDayItems = (items: PlanItem[]) => {
     if (!draft) return;
@@ -596,7 +601,7 @@ export default function ParentDashboard() {
                                   ? `${entry.correct}/${entry.answered} correct (${entry.gradePercent}%)`
                                   : `In progress ${entry.answered}/${entry.questionsPlanned}`}
                               </span>
-                              {settings.rewardsEnabled && entry.starsAwarded && (
+                              {settings.rewardsEnabled && entry.starsEarned > 0 && (
                                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                   <i className="fa-solid fa-star" style={{ fontSize: 12, color: palette.starColor }} />
                                   <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 12, color: '#8F887A' }}>
@@ -727,6 +732,9 @@ export default function ParentDashboard() {
                         const gap = gapBefore(dayItems, i);
                         const clashes = dayClashes.has(item.id);
                         const isLast = i === dayItems.length - 1;
+                        // Only today's plan can report back — other days are still just a plan.
+                        const done = showsProgress && todayRecord ? isPlanItemDone(item, todayRecord) : false;
+                        const entry = showsProgress && todayRecord ? planItemRecord(item, todayRecord) : undefined;
                         return (
                           <div key={item.id}>
                             {gap !== null && (
@@ -851,6 +859,53 @@ export default function ParentDashboard() {
                                     </span>
                                   )}
                                 </div>
+
+                                {/* How the plan actually went. Today only. */}
+                                {showsProgress && (
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      flexWrap: 'wrap',
+                                      borderTop: '1px dashed #ECE8DC',
+                                      paddingTop: 8,
+                                      fontFamily: "'Nunito', sans-serif",
+                                      fontWeight: 800,
+                                      fontSize: 11,
+                                    }}
+                                  >
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: done ? '#2E9E70' : '#A9A294' }}>
+                                      <i
+                                        className={done ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'}
+                                        style={{ fontSize: 11 }}
+                                      />
+                                      {done ? 'Done' : 'Not done yet'}
+                                    </span>
+
+                                    {entry && entry.answered > 0 && (
+                                      <span style={{ color: '#8F887A' }}>
+                                        {entry.correct}/{entry.answered} correct
+                                        {entry.gradePercent !== null && ` (${entry.gradePercent}%)`}
+                                      </span>
+                                    )}
+
+                                    {entry && entry.secondsSpent > 0 && (
+                                      <span style={{ color: '#8F887A' }}>
+                                        {item.durationMin
+                                          ? `${item.durationMin} min planned · ${formatMinutesSpent(entry.secondsSpent)} done`
+                                          : `${formatMinutesSpent(entry.secondsSpent)} spent`}
+                                      </span>
+                                    )}
+
+                                    {entry && entry.starsEarned > 0 && settings.rewardsEnabled && (
+                                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#8F887A' }}>
+                                        <i className="fa-solid fa-star" style={{ fontSize: 10, color: palette.starColor }} />
+                                        {entry.starsEarned}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

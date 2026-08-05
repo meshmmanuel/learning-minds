@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { DailyRecord, Kid, KidSettings, ThemeName, TopicSessionRecord } from '../types';
+import type { DailyHistory, DailyRecord, Kid, KidSettings, ThemeName, TopicSessionRecord } from '../types';
 import { todayStr } from '../utils/date';
 import { computeStars } from '../utils/rewards';
 import { activityKey } from '../utils/progress';
@@ -16,8 +16,68 @@ const DEFAULT_SETTINGS: KidSettings = {
   freePlayAfterPlan: true,
 };
 
-function emptyDailyRecord(): DailyRecord {
-  return { date: todayStr(), topics: {}, starsToday: 0, rewardPending: false, offlineDone: [] };
+/**
+ * How many days of records we keep per kid. Long enough for a parent to see a
+ * term's worth of trend, short enough that localStorage stays small.
+ */
+const HISTORY_DAYS = 90;
+
+function emptyDailyRecord(date = todayStr()): DailyRecord {
+  return { date, topics: {}, starsToday: 0, rewardPending: false, offlineDone: [] };
+}
+
+/** Fills in fields added after a record was written. */
+function normaliseRecord(rec: Partial<DailyRecord> & { date: string }): DailyRecord {
+  const topics = Object.fromEntries(
+    Object.entries((rec.topics ?? {}) as Record<string, Partial<TopicSessionRecord>>).map(([key, entry]) => [
+      key,
+      { ...entry, secondsSpent: entry.secondsSpent ?? 0 } as TopicSessionRecord,
+    ]),
+  );
+  return { ...emptyDailyRecord(rec.date), ...rec, topics };
+}
+
+function looksLikeRecord(value: unknown): value is DailyRecord {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as DailyRecord).date === 'string' &&
+    typeof (value as DailyRecord).topics === 'object'
+  );
+}
+
+/** Newest `HISTORY_DAYS` days. ISO dates sort correctly as strings. */
+function pruneHistory(history: DailyHistory): DailyHistory {
+  const dates = Object.keys(history).sort();
+  if (dates.length <= HISTORY_DAYS) return history;
+  return Object.fromEntries(dates.slice(-HISTORY_DAYS).map((d) => [d, history[d]]));
+}
+
+/**
+ * Earlier builds stored one record per kid and threw it away at midnight, so an
+ * upgrading profile has exactly one day of work in the old shape. Fold it in as
+ * that day rather than discarding it, and leave anything unrecognisable alone
+ * instead of clearing it.
+ */
+function migrateDailyRecords(raw: unknown): Record<string, DailyHistory> {
+  if (typeof raw !== 'object' || raw === null) return {};
+  const out: Record<string, DailyHistory> = {};
+
+  for (const [kidId, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (looksLikeRecord(value)) {
+      out[kidId] = { [value.date]: normaliseRecord(value) };
+      continue;
+    }
+    if (typeof value !== 'object' || value === null) continue;
+
+    const days: DailyHistory = {};
+    for (const [date, rec] of Object.entries(value as Record<string, unknown>)) {
+      if (looksLikeRecord(rec)) days[date] = normaliseRecord(rec);
+    }
+    out[kidId] = pruneHistory(days);
+  }
+
+  return out;
 }
 
 interface PersistedState {
@@ -29,13 +89,27 @@ interface PersistedState {
   tapSoundsEnabled: boolean;
   gameSoundsEnabled: boolean;
   kidSettings: Record<string, KidSettings>;
-  dailyRecords: Record<string, DailyRecord>;
+  /** kidId -> date -> that day's record. See `HISTORY_DAYS`. */
+  dailyRecords: Record<string, DailyHistory>;
   lastPlayDate: Record<string, string>;
 }
 
 interface CompleteResult {
   starsEarnedThisRun: number;
   rewardReady: boolean;
+}
+
+export interface CompleteSessionInput {
+  kidId: string;
+  subjectId: string;
+  topicId: string;
+  activityId: string;
+  correct: number;
+  answered: number;
+  planned: number;
+  passed: boolean;
+  /** Length of this run, added to any time already spent on the activity today. */
+  secondsSpent: number;
 }
 
 interface AppState extends PersistedState {
@@ -52,6 +126,8 @@ interface AppState extends PersistedState {
   getKidSettings: (kidId: string) => KidSettings;
   updateKidSettings: (kidId: string, partial: Partial<KidSettings>) => void;
   getTodayRecord: (kidId: string) => DailyRecord;
+  /** Every stored day for a kid, newest first. */
+  getHistory: (kidId: string) => DailyRecord[];
   recordTopicProgress: (
     kidId: string,
     subjectId: string,
@@ -60,16 +136,7 @@ interface AppState extends PersistedState {
     answered: number,
     correct: number,
   ) => void;
-  completeTopicSession: (
-    kidId: string,
-    subjectId: string,
-    topicId: string,
-    activityId: string,
-    correct: number,
-    answered: number,
-    planned: number,
-    passed: boolean,
-  ) => CompleteResult;
+  completeTopicSession: (input: CompleteSessionInput) => CompleteResult;
   toggleOfflinePlanItem: (kidId: string, itemId: string) => void;
   claimReward: (kidId: string) => void;
   resetTodayForKid: (kidId: string) => void;
@@ -100,7 +167,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tapSoundsEnabled, setTapSoundsEnabledState] = useState<boolean>(initial.tapSoundsEnabled ?? true);
   const [gameSoundsEnabled, setGameSoundsEnabledState] = useState<boolean>(initial.gameSoundsEnabled ?? true);
   const [kidSettings, setKidSettings] = useState<Record<string, KidSettings>>(initial.kidSettings ?? {});
-  const [dailyRecords, setDailyRecords] = useState<Record<string, DailyRecord>>(initial.dailyRecords ?? {});
+  const [dailyRecords, setDailyRecords] = useState<Record<string, DailyHistory>>(() =>
+    migrateDailyRecords(initial.dailyRecords),
+  );
   const [lastPlayDate, setLastPlayDate] = useState<Record<string, string>>(initial.lastPlayDate ?? {});
 
   useEffect(() => {
@@ -198,9 +267,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const getTodayRecord: AppState['getTodayRecord'] = (kidId) => {
-    const record = dailyRecords[kidId];
-    if (record && record.date === todayStr()) return { ...emptyDailyRecord(), ...record };
-    return emptyDailyRecord();
+    const record = dailyRecords[kidId]?.[todayStr()];
+    return record ? normaliseRecord(record) : emptyDailyRecord();
+  };
+
+  const getHistory: AppState['getHistory'] = (kidId) => {
+    const history = dailyRecords[kidId] ?? {};
+    return Object.keys(history)
+      .sort()
+      .reverse()
+      .map((date) => normaliseRecord(history[date]));
   };
 
   function withTodayRecord(
@@ -208,9 +284,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updater: (record: DailyRecord) => DailyRecord,
   ) {
     setDailyRecords((prev) => {
-      const existing = prev[kidId];
-      const base = existing && existing.date === todayStr() ? { ...emptyDailyRecord(), ...existing } : emptyDailyRecord();
-      return { ...prev, [kidId]: updater(base) };
+      const today = todayStr();
+      const history = prev[kidId] ?? {};
+      const base = history[today] ? normaliseRecord(history[today]) : emptyDailyRecord();
+      return { ...prev, [kidId]: pruneHistory({ ...history, [today]: updater(base) }) };
     });
   }
 
@@ -238,7 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             completed: false,
             gradePercent: null,
             starsEarned: 0,
-            starsAwarded: false,
+            secondsSpent: 0,
             completedAt: null,
           };
       return { ...record, topics: { ...record.topics, [key]: entry } };
@@ -246,7 +323,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLastPlayDate((prev) => ({ ...prev, [kidId]: todayStr() }));
   };
 
-  const completeTopicSession: AppState['completeTopicSession'] = (
+  const completeTopicSession: AppState['completeTopicSession'] = ({
     kidId,
     subjectId,
     topicId,
@@ -255,27 +332,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     answered,
     planned,
     passed,
-  ) => {
+    secondsSpent,
+  }) => {
     const settings = getKidSettings(kidId);
     const key = activityKey(subjectId, topicId, activityId);
-    const stored = dailyRecords[kidId];
-    const record = stored && stored.date === todayStr() ? { ...emptyDailyRecord(), ...stored } : emptyDailyRecord();
+    const stored = dailyRecords[kidId]?.[todayStr()];
+    const record = stored ? normaliseRecord(stored) : emptyDailyRecord();
 
     const existing = record.topics[key];
     const runGrade = answered > 0 ? Math.round((100 * correct) / answered) : 0;
     const gradePercent = existing?.gradePercent != null ? Math.max(existing.gradePercent, runGrade) : runGrade;
 
-    let starsEarned = existing?.starsEarned ?? 0;
-    let starsAwarded = existing?.starsAwarded ?? false;
-    let starsToday = record.starsToday;
-    let starsEarnedThisRun = 0;
-
-    if (!starsAwarded && settings.rewardsEnabled && passed) {
-      starsEarned = computeStars();
-      starsAwarded = true;
-      starsToday = record.starsToday + starsEarned;
-      starsEarnedThisRun = starsEarned;
-    }
+    // A star for every finish, not just the first time on an activity — going
+    // back to something a second time is practice, and practice should count.
+    const starsEarnedThisRun = settings.rewardsEnabled && passed ? computeStars() : 0;
+    const starsEarned = (existing?.starsEarned ?? 0) + starsEarnedThisRun;
+    const starsToday = record.starsToday + starsEarnedThisRun;
 
     const crossed = settings.rewardsEnabled && !record.rewardPending && starsToday >= settings.dailyStarTarget;
 
@@ -289,19 +361,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completed: true,
       gradePercent,
       starsEarned,
-      starsAwarded,
+      secondsSpent: (existing?.secondsSpent ?? 0) + Math.max(0, Math.round(secondsSpent)),
       completedAt: new Date().toISOString(),
     };
 
-    setDailyRecords((prev) => ({
-      ...prev,
-      [kidId]: {
-        ...record,
-        topics: { ...record.topics, [key]: entry },
-        starsToday,
-        rewardPending: crossed || record.rewardPending,
-      },
-    }));
+    setDailyRecords((prev) => {
+      const history = prev[kidId] ?? {};
+      return {
+        ...prev,
+        [kidId]: pruneHistory({
+          ...history,
+          [todayStr()]: {
+            ...record,
+            topics: { ...record.topics, [key]: entry },
+            starsToday,
+            rewardPending: crossed || record.rewardPending,
+          },
+        }),
+      };
+    });
     setLastPlayDate((prev) => ({ ...prev, [kidId]: todayStr() }));
 
     return { starsEarnedThisRun, rewardReady: crossed };
@@ -316,21 +394,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  /**
+   * Claiming spends the stars but not the record of earning them — `starsToday`
+   * is progress toward the next reward, while each activity's `starsEarned`
+   * stays put as history.
+   */
   const claimReward: AppState['claimReward'] = (kidId) => {
-    withTodayRecord(kidId, (record) => {
-      const topics = Object.fromEntries(
-        Object.entries(record.topics).map(([key, entry]) => [key, { ...entry, starsAwarded: false }]),
-      );
-      return { ...record, topics, starsToday: 0, rewardPending: false };
-    });
+    withTodayRecord(kidId, (record) => ({ ...record, starsToday: 0, rewardPending: false }));
   };
 
+  /** Clears today only — earlier days are the parent's record and survive. */
   const resetTodayForKid: AppState['resetTodayForKid'] = (kidId) => {
-    setDailyRecords((prev) => ({ ...prev, [kidId]: emptyDailyRecord() }));
+    setDailyRecords((prev) => ({ ...prev, [kidId]: { ...prev[kidId], [todayStr()]: emptyDailyRecord() } }));
   };
 
   const resetAllProgressForKid: AppState['resetAllProgressForKid'] = (kidId) => {
-    setDailyRecords((prev) => ({ ...prev, [kidId]: emptyDailyRecord() }));
+    setDailyRecords((prev) => ({ ...prev, [kidId]: {} }));
     setLastPlayDate((prev) => {
       const next = { ...prev };
       delete next[kidId];
@@ -362,6 +441,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getKidSettings,
         updateKidSettings,
         getTodayRecord,
+        getHistory,
         recordTopicProgress,
         completeTopicSession,
         toggleOfflinePlanItem,

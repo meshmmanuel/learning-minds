@@ -61,7 +61,6 @@ export default function TopicActivity() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [attemptsOnCurrent, setAttemptsOnCurrent] = useState(0);
-  const [strikes, setStrikes] = useState(0);
   const [phase, setPhase] = useState<Phase>('question');
   const [finishResult, setFinishResult] = useState<{ starsEarnedThisRun: number } | null>(null);
 
@@ -104,7 +103,6 @@ export default function TopicActivity() {
     setAnsweredCount(0);
     setCorrectCount(0);
     setAttemptsOnCurrent(0);
-    setStrikes(0);
     setPhase('question');
     setFinishResult(null);
   };
@@ -112,16 +110,17 @@ export default function TopicActivity() {
   if (!kid || !subject || !topic || !activity || !settings || !allowed) return null;
 
   const finishSession = (correct: number, answered: number, passed: boolean) => {
-    const result = completeTopicSession(
-      kid.id,
-      subject.id,
-      topic.id,
-      activity.id,
+    const result = completeTopicSession({
+      kidId: kid.id,
+      subjectId: subject.id,
+      topicId: topic.id,
+      activityId: activity.id,
       correct,
       answered,
-      totalQuestions,
+      planned: totalQuestions,
       passed,
-    );
+      secondsSpent: (Date.now() - startedAt) / 1000,
+    });
     playSound(FINISH_SOUND);
     if (result.rewardReady) {
       navigate('/home');
@@ -173,17 +172,15 @@ export default function TopicActivity() {
       return;
     }
 
-    // Second miss on this question — counts as a strike.
-    const nextStrikes = strikes + 1;
+    // Second miss — move on to the next question. Getting things wrong is the
+    // reason the child is here, so it never cuts the session short: only the
+    // clock (timed) or the question count (free play) ends a run.
     const nextAnswered = answeredCount + 1;
-    setStrikes(nextStrikes);
     setAnsweredCount(nextAnswered);
     recordTopicProgress(kid.id, subject.id, topic.id, activity.id, nextAnswered, correctCount);
 
     setTimeout(() => {
-      if (nextStrikes >= 2) {
-        finishSession(correctCount, nextAnswered, false);
-      } else if (runIsOver(nextAnswered)) {
+      if (runIsOver(nextAnswered)) {
         finishSession(correctCount, nextAnswered, true);
       } else {
         advanceQuestion();
